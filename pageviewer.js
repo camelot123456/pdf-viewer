@@ -61,7 +61,7 @@ const loadingTask = pdfjsLib.getDocument({
     scale: SCALE,
     defaultViewport: pdfPage.getViewport({ scale: SCALE }),
     eventBus,
-    // We can enable text/annotation/xfa/struct-layers, as needed.
+    // We can enable text/annotationUtil.js/xfa/struct-layers, as needed.
     textLayerFactory: !pdfDocument.isPureXfa
       ? new pdfjsViewer.DefaultTextLayerFactory()
       : null,

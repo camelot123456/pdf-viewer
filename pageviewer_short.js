@@ -68,7 +68,7 @@ async function renderPage(pdfDocument, pageNumber, _scale, _rotate) {
         scale: _scale,
         defaultViewport: pdfPage.getViewport({ scale: _scale }),
         eventBus,
-        // We can enable text/annotation/xfa/struct-layers, as needed.
+        // We can enable text/annotationUtil.js/xfa/struct-layers, as needed.
         textLayerFactory: !pageNumber.isPureXfa
             ? new pdfjsViewer.DefaultTextLayerFactory()
             : null,
@@ -146,10 +146,54 @@ function handleEvents(canvas, pageNumber) {
         if (action !== '') {
             isDown = false;
         }
+        var obj = e.target;
+        if(obj.currentHeight > obj.canvas.height || obj.currentWidth > obj.canvas.width){
+            return;
+        }
+        obj.setCoords();
+        // top-left corner
+        if(obj.getBoundingRect().top < 0 || obj.getBoundingRect().left < 0){
+            obj.top = Math.max(obj.top, obj.top-obj.getBoundingRect().top);
+            obj.left = Math.max(obj.left, obj.left-obj.getBoundingRect().left);
+        }
+        // bot-right corner
+        if(obj.getBoundingRect().top+obj.getBoundingRect().height  > obj.canvas.height || obj.getBoundingRect().left+obj.getBoundingRect().width  > obj.canvas.width){
+            obj.top = Math.min(obj.top, obj.canvas.height-obj.getBoundingRect().height+obj.top-obj.getBoundingRect().top);
+            obj.left = Math.min(obj.left, obj.canvas.width-obj.getBoundingRect().width+obj.left-obj.getBoundingRect().left);
+        }
         canvas.remove(objectAnnot);
         canvas.requestRenderAll();
     });
 
+    let left1 = 0;
+    let top1 = 0 ;
+    let scale1x = 0 ;
+    let scale1y = 0 ;
+    let width1 = 0 ;
+    let height1 = 0 ;
+    canvas.on('object:scaling', function (e){
+        let obj = e.target;
+        obj.setCoords();
+        let brNew = obj.getBoundingRect();
+
+        if (((brNew.width+brNew.left)>=obj.canvas.width) || ((brNew.height+brNew.top)>=obj.canvas.height) || ((brNew.left<0) || (brNew.top<0))) {
+            obj.left = left1;
+            obj.top=top1;
+            obj.scaleX=scale1x;
+            obj.scaleY=scale1y;
+            obj.width=width1;
+            obj.height=height1;
+        }
+        else{
+            left1 =obj.left;
+            top1 =obj.top;
+            scale1x = obj.scaleX;
+            scale1y=obj.scaleY;
+            width1=obj.width;
+            height1=obj.height;
+        }
+        canvas.requestRenderAll();
+    });
 }
 
 function onMouseMove(canvas, pointer) {

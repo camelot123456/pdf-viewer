@@ -1,0 +1,3 @@
+function createAnnot(canvas, pageNumber) {
+
+}
