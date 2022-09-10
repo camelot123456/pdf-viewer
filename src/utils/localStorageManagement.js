@@ -26,4 +26,8 @@ function updateAnnotInLocalStorage(documentId) {
 
 }
 
+function isEmptyAnnots(documentId) {
+
+}
+
 export {addAnnot, deleteAnnot, editAnnot, getAllAnnot, getOneAnnot, updateAnnotInLocalStorage};

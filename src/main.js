@@ -1,6 +1,7 @@
 "use strict";
 import {data} from './static/data-sample/data-docs.js';
 import * as util from './utils/util.js';
+import {ICON} from "./utils/constants.js";
 
 if (!pdfjsLib.getDocument || !pdfjsViewer.PDFPageView) {
     alert("Please build the pdfjs-dist library using\n  `gulp dist-install`");
@@ -22,9 +23,10 @@ let objectAnnot;
 let canvas;
 // declare var
 
+// start init
 init();
 
-function init() {
+function initOnEvent() {
     const pdfTool = document.querySelector('#pdf-tool').childNodes;
     const pdfAction = document.querySelector('#pdf-annots').childNodes;
     pdfTool.forEach(tool => {
@@ -37,6 +39,86 @@ function init() {
             chooseAction(action.id);
         })
     })
+}
+
+function deleteObject(eventData, transform) {
+    const target = transform.target;
+    const canvas = target.canvas;
+    if (target) {
+        if (confirm('Are you sure?')) {
+            canvas.remove(target);
+        }
+    }
+    canvas.requestRenderAll();
+}
+
+function duplicateObject(eventData, transform) {
+    var target = transform.target;
+    var canvas = target.canvas;
+    target.clone(function(cloned) {
+        cloned.left += 10;
+        cloned.top += 10;
+        canvas.add(cloned);
+    });
+}
+
+function editObject(eventData, transform) {
+    alert('Coming Soon!');
+}
+
+function renderIcon(icon) {
+    const img = document.createElement('img');
+    img.src = icon;
+    return (ctx, left, top, styleOverride, fabricObject) => {
+        let size = 24;
+        ctx.save();
+        ctx.translate(left, top);
+        ctx.rotate(fabric.util.degreesToRadians(fabricObject.angle));
+        ctx.drawImage(img, -size / 2, -size / 2, size, size);
+        ctx.restore();
+    }
+}
+
+function settingFabricCanvas() {
+    fabric.Object.prototype.transparentCorners = false;
+    fabric.Object.prototype.cornerColor = '#b2ccff';
+    fabric.Object.prototype.cornerStyle = 'rect'; // or circle
+    fabric.Object.prototype.controls.deleteControl = new fabric.Control({
+        x: 0.5,
+        y: -0.5,
+        offsetY: -20,
+        offsetX: 16,
+        cursorStyle: 'pointer',
+        mouseUpHandler: deleteObject,
+        render: renderIcon(ICON.deleteIcon),
+        cornerSize: 24
+    });
+    fabric.Object.prototype.controls.clone = new fabric.Control({
+        x: 0.5,
+        y: -0.5,
+        offsetY: -20,
+        offsetX: -16,
+        cursorStyle: 'pointer',
+        mouseUpHandler: duplicateObject,
+        render: renderIcon(ICON.duplicateIcon),
+        cornerSize: 24
+    });
+    fabric.Object.prototype.controls.cloneControl = new fabric.Control({
+        x: 0.5,
+        y: -0.5,
+        offsetY: -20,
+        offsetX: -40,
+        cursorStyle: 'pointer',
+        mouseUpHandler: editObject,
+        render: renderIcon(ICON.editIcon),
+        cornerSize: 24
+    });
+}
+
+function init() {
+    const dt = [{a: 1, b: 'hello', c: true, d: {d1: true}, e: [1, 3, 4, 5]}, {f: 'Kakaka'}];
+    localStorage.setItem('test', JSON.stringify(dt));
+    console.log(JSON.parse(localStorage.getItem('test')));
     renderListDocs();
 }
 
@@ -48,7 +130,6 @@ function renderListDocs() {
         item.classList.add('docs-item');
         item.textContent = `doc ${i + 1}`;
         item.addEventListener('click', e => {
-            console.log(data[i].path)
             changeDocument(data[i].path);
         });
         listDocs.appendChild(item);
@@ -60,6 +141,7 @@ function chooseAction(_action) {
     const canvasWrappers = document.querySelectorAll('#pageContainer .page');
     switch (_action) {
         case 'select':
+        case 'free-draw':
         case 'rectangle':
             canvasWrappers.forEach(element => {
                 if (element.querySelector('.textLayer')) {
@@ -71,6 +153,10 @@ function chooseAction(_action) {
             });
             break;
         case 'non-select':
+            if (canvas.getActiveObject() !== undefined) {
+                canvas.discardActiveObject();
+                canvas.requestRenderAll();
+            }
             canvasWrappers.forEach(element => {
                 if (element.querySelector('.textLayer')) {
                     element.querySelector('.textLayer').classList.remove('hidden');
@@ -78,10 +164,18 @@ function chooseAction(_action) {
                 if (element.querySelector('.annotationLayer')) {
                     element.querySelector('.annotationLayer').classList.remove('hidden');
                 }
-                canvas.discardActiveObject();
-                canvas.requestRenderAll();
             });
-
+            break;
+        case 'clear':
+            const activeGroup = canvas.getActiveGroup();
+            if (confirm('Are you sure, clear?')) {
+                const objectsInGroup = activeGroup.getObjects();
+                canvas.discardActiveGroup();
+                objectsInGroup.forEach(object => {
+                    canvas.remove(object);
+                    canvas.requestRenderAll();
+                });
+            }
             break;
     }
 }
@@ -105,6 +199,8 @@ function changeDocument(src) {
     renderPdf(src, scaleDefault, 0);
 }
 
+// end init
+
 async function renderPdf(src, scale, rotate) {
     // Loading document.
     let loadingTask = pdfjsLib.getDocument({
@@ -116,10 +212,10 @@ async function renderPdf(src, scale, rotate) {
 
     loadingTask.onPassword = function (updatePassword, reason) {
         if (reason === 1) { // need a password
-            var new_password = prompt('Please enter a password:');
+            const new_password = prompt('Please enter a password:');
             updatePassword(new_password);
         } else { // Invalid password
-            var new_password = prompt('Invalid! Please enter a password:');
+            const new_password = prompt('Invalid! Please enter a password:');
             updatePassword(new_password);
         }
     };
@@ -168,7 +264,6 @@ async function renderPage(pdfDocument, pageNumber, _scale, _rotate) {
             hoverCursor: 'pointer',
             selection: true
         });
-        fabric.Object.prototype.transparentCorners = false;
 
         fabric.Image.fromURL(src, image => {
             canvas.setBackgroundImage(
@@ -182,6 +277,9 @@ async function renderPage(pdfDocument, pageNumber, _scale, _rotate) {
                 }
             );
         });
+
+        initOnEvent();
+        settingFabricCanvas();
         handleEventCanvas(canvas, pageNumber);
         util.randomAnnots(canvas);
     });
@@ -207,12 +305,18 @@ function handleEventCanvas(canvas, pageNumber) {
     });
 
     canvas.on('mouse:move', function (e) {
-        onMouseMove(e);
+        if (isDown) onMouseMove(e);
     });
 
     canvas.on('object:moving', function (e) {
         onObjectMoving(e);
     });
+
+    canvas.on('path:created', function(e) {
+        e.path.set();
+        canvas.renderAll();
+        // console.log(canvas.toJSON())
+    })
 
     let left1 = 0;
     let top1 = 0;
@@ -221,6 +325,7 @@ function handleEventCanvas(canvas, pageNumber) {
     let width1 = 0;
     let height1 = 0;
     canvas.on('object:scaling', function (e) {
+        isDown = false;
         let obj = e.target;
         obj.setCoords();
         let brNew = obj.getBoundingRect();
@@ -242,6 +347,10 @@ function handleEventCanvas(canvas, pageNumber) {
         }
         canvas.requestRenderAll();
     });
+
+    canvas.on('object:rotating', e => {
+        isDown = false;
+    })
 }
 
 function onObjectMoving(e) {
@@ -316,11 +425,18 @@ function onMouseDown(e, pageNumber) {
     canvas.isDrawingMode = false;
     switch (action) {
         case 'free-draw':
-            canvas.freeDrawingBrush = new fabric.PencilBrush(this.canvas);
+            canvas.isDrawingMode = !canvas.isDrawingMode;
+            canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
             canvas.freeDrawingBrush.color = '#f00';
-            canvas.freeDrawingBrush.width = 2;
-            canvas.isDrawingMode = !this.canvas.isDrawingMode;
+            canvas.freeDrawingBrush.width = 1;
             canvas.freeDrawingBrush.limitedToCanvasSize = true;
+            // canvas.freeDrawingBrush.shadow = new fabric.Shadow({
+            //     blur: parseInt(2, 10) || 0,
+            //     offsetX: 0,
+            //     offsetY: 0,
+            //     affectStroke: true,
+            //     color: '#ff0',
+            // });
             objectAnnot = undefined;
             break;
         case 'rectangle':
@@ -342,22 +458,19 @@ function onMouseDown(e, pageNumber) {
         default:
             return null;
     }
-    objectAnnot['uuid'] = util.uuidv4();
-    objectAnnot['page'] = pageNumber;
-    objectAnnot['class'] = 'Annotation';
-    objectAnnot['createdAt'] = new Date().getTime().toString();
-    objectAnnot['createdBy'] = 'Anonymous';
-    objectAnnot['state'] = action;
-    objectAnnot['isBurned'] = false;
-    objectAnnot['initialWidth'] = canvas.getWidth();
+//  update props for annot
+    if (!['free-draw'].includes(action)) {
+        objectAnnot['uuid'] = util.uuid();
+        objectAnnot['page'] = pageNumber;
+        objectAnnot['class'] = 'Annotation';
+        objectAnnot['createdAt'] = util.getCreatedAt(true);
+        objectAnnot['createdBy'] = 'Anonymous';
+        objectAnnot['state'] = action;
+        objectAnnot['isBurned'] = false;
+        objectAnnot['initialWidth'] = canvas.getWidth();
 
-    objectAnnot.setControlsVisibility({
-        mtr: false
-    });
-    canvas.requestRenderAll();
+        objectAnnot.setControlsVisibility({
+            mtr: true
+        });
+    }
 }
-
-
-
-
-
