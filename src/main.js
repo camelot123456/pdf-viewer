@@ -1,15 +1,16 @@
-"use strict";
+'use strict';
 import {data} from './static/data-sample/data-docs.js';
 import * as util from './utils/util.js';
 import {ICON} from "./utils/constants.js";
 
 if (!pdfjsLib.getDocument || !pdfjsViewer.PDFPageView) {
-    alert("Please build the pdfjs-dist library using\n  `gulp dist-install`");
+    alert('Please build the pdfjs-dist library using\n  `gulp dist-install`');
 }
-pdfjsLib.GlobalWorkerOptions.workerSrc = "./static/pdf-lib/pdf.worker.js";
-const CMAP_URL = "./static/pdf-lib/cmaps/";
+pdfjsLib.GlobalWorkerOptions.workerSrc = './static/pdf-lib/pdf.worker.js';
+const CMAP_URL = './static/pdf-lib/cmaps/';
 const CMAP_PACKED = true;
 let scaleDefault = 1.0;
+let rotationDefault = 90;
 const ENABLE_XFA = true;
 
 const container = document.getElementById("pageContainer");
@@ -20,7 +21,9 @@ let origX;
 let origY;
 let action;
 let objectAnnot;
-let canvas;
+// let canvas;
+let canvasArr = [];
+let documentSrc;
 // declare var
 
 // start init
@@ -53,8 +56,8 @@ function deleteObject(eventData, transform) {
 }
 
 function duplicateObject(eventData, transform) {
-    var target = transform.target;
-    var canvas = target.canvas;
+    const target = transform.target;
+    const canvas = target.canvas;
     target.clone(function(cloned) {
         cloned.left += 10;
         cloned.top += 10;
@@ -116,9 +119,6 @@ function settingFabricCanvas() {
 }
 
 function init() {
-    const dt = [{a: 1, b: 'hello', c: true, d: {d1: true}, e: [1, 3, 4, 5]}, {f: 'Kakaka'}];
-    localStorage.setItem('test', JSON.stringify(dt));
-    console.log(JSON.parse(localStorage.getItem('test')));
     renderListDocs();
 }
 
@@ -129,8 +129,8 @@ function renderListDocs() {
         item.id = `item-${i + 1}`;
         item.classList.add('docs-item');
         item.textContent = `doc ${i + 1}`;
-        item.addEventListener('click', e => {
-            changeDocument(data[i].path);
+        item.addEventListener('click', async e => {
+            await renderPdf(data[i].path, scaleDefault, rotationDefault);
         });
         listDocs.appendChild(item);
     }
@@ -153,10 +153,12 @@ function chooseAction(_action) {
             });
             break;
         case 'non-select':
-            if (canvas.getActiveObject() !== undefined) {
-                canvas.discardActiveObject();
-                canvas.requestRenderAll();
-            }
+            canvasArr.forEach(cs => {
+                if (cs.getActiveObject() !== undefined) {
+                    cs.discardActiveObject();
+                    cs.requestRenderAll();
+                }
+            });
             canvasWrappers.forEach(element => {
                 if (element.querySelector('.textLayer')) {
                     element.querySelector('.textLayer').classList.remove('hidden');
@@ -167,41 +169,58 @@ function chooseAction(_action) {
             });
             break;
         case 'clear':
-            const activeGroup = canvas.getActiveGroup();
             if (confirm('Are you sure, clear?')) {
-                const objectsInGroup = activeGroup.getObjects();
-                canvas.discardActiveGroup();
-                objectsInGroup.forEach(object => {
-                    canvas.remove(object);
-                    canvas.requestRenderAll();
+                canvasArr.forEach(async cs => {
+                    await cs.getObjects().forEach(obj => {
+                        cs.remove(obj);
+                        cs.requestRenderAll();
+                    });
                 });
             }
             break;
     }
 }
 
-function choosePdfTool(_toolName) {
+async function choosePdfTool(_toolName) {
     switch (_toolName) {
         case 'zoom-in':
-            // scaleDefault = scaleDefault + 0.1;
-            // renderPdf(scaleDefault, 0);
+            await renderPdf(documentSrc, scaleDefault + 0.1, rotationDefault);
+            // if(canvas.getZoom() > 15)
+            //     return;
+            // canvas.zoomToPoint(new fabric.Point(canvas.width / 2, canvas.height / 2), canvas.getZoom() * 1.1);
             break;
         case 'zoom-out':
-            // scaleDefault = scaleDefault - 0.1;
-            // renderPdf(scaleDefault, 0);
+            await renderPdf(documentSrc, scaleDefault + 0.1, rotationDefault);
+            // if(canvas.getZoom() < 0.3)
+            //     return;
+            // canvas.zoomToPoint(new fabric.Point(canvas.width / 2, canvas.height / 2), canvas.getZoom() / 1.1);
+            break;
+        case 'rotate-left':
+            await renderPdf(documentSrc, scaleDefault, rotationDefault - 90);
+            // if(canvas.getZoom() > 15)
+            //     return;
+            // canvas.zoomToPoint(new fabric.Point(canvas.width / 2, canvas.height / 2), canvas.getZoom() * 1.1);
+            break;
+        case 'rotate-right':
+            await renderPdf(documentSrc, scaleDefault, rotationDefault + 90);
+            // if(canvas.getZoom() < 0.3)
+            //     return;
+            // canvas.zoomToPoint(new fabric.Point(canvas.width / 2, canvas.height / 2), canvas.getZoom() / 1.1);
             break;
     }
 }
 
-function changeDocument(src) {
-    const pageContainer = document.querySelector('#pageContainer');
-    pageContainer.innerHTML = '';
-    renderPdf(src, scaleDefault, 0);
+async function changeDocument(src) {
+    await renderPdf(src, scaleDefault, rotationDefault);
 }
 
 // end init
 
 async function renderPdf(src, scale, rotate) {
+    canvasArr = [];
+    documentSrc = src;
+    const pageContainer = document.querySelector('#pageContainer');
+    pageContainer.innerHTML = '';
     // Loading document.
     let loadingTask = pdfjsLib.getDocument({
         url: src,
@@ -224,7 +243,7 @@ async function renderPdf(src, scale, rotate) {
     const numPages = pdfDocument.numPages;
 
     for (let pageNumber = 1; pageNumber <= numPages; pageNumber++) {
-        renderPage(pdfDocument, pageNumber, scale, rotate);
+        await renderPage(pdfDocument, pageNumber, scale, rotate);
     }
 }
 
@@ -236,7 +255,7 @@ async function renderPage(pdfDocument, pageNumber, _scale, _rotate) {
         container,
         id: pageNumber,
         scale: _scale,
-        defaultViewport: pdfPage.getViewport({scale: _scale}),
+        defaultViewport: pdfPage.getViewport({scale: _scale, rotation: _rotate}),
         eventBus,
         // We can enable text/annotationUtil.js/xfa/struct-layers, as needed.
         textLayerFactory: !pageNumber.isPureXfa
@@ -254,13 +273,14 @@ async function renderPage(pdfDocument, pageNumber, _scale, _rotate) {
     return pdfPageView.draw().then(() => {
         const pageItem = document.getElementsByClassName('page')[pageNumber - 1];
         pageItem.setAttribute('id', `pageContainer${pageNumber}`);
+        pageItem.style.margin = '10px 0px';
         return pageItem;
     }).then(page => {
         const canvasWrapper = page.querySelector('.canvasWrapper canvas');
         canvasWrapper.setAttribute('id', `pageContainer-canvas-${pageNumber}`);
         const src = canvasWrapper.toDataURL({format: 'png', enableRetinaScaling: true});
 
-        canvas = new fabric.Canvas(canvasWrapper, {
+        const canvas = new fabric.Canvas(canvasWrapper, {
             hoverCursor: 'pointer',
             selection: true
         });
@@ -277,83 +297,86 @@ async function renderPage(pdfDocument, pageNumber, _scale, _rotate) {
                 }
             );
         });
+        canvas.page = pageNumber;
 
         initOnEvent();
         settingFabricCanvas();
         handleEventCanvas(canvas, pageNumber);
         util.randomAnnots(canvas);
+        canvasArr.push(canvas);
     });
 }
 
-function handleEventCanvas(canvas, pageNumber) {
-    canvas.on('mouse:over', function (e) {
-        // e.target.set('fill', 'red');
-        canvas.renderAll();
-    });
+async function handleEventCanvas(canvas, pageNumber) {
+    let leftScale = 0;
+    let topScale = 0;
+    let scaleXScale = 0;
+    let scaleYScale = 0;
+    let widthScale = 0;
+    let heightScale = 0;
+    canvas.on({
+        'mouse:over': e => {
+            // e.target.set('fill', 'red');
+            canvas.renderAll();
+        },
+        'mouse:out': e => {
+            // e.target.set('fill', 'green');
+            canvas.renderAll();
+        },
+        'mouse:down': e => {
+            onMouseDown(canvas, e);
+        },
+        'mouse:up': e => {
+            onMouseUp(canvas, e);
+        },
+        'mouse:move': e => {
+            if (isDown) onMouseMove(canvas, e);
+        },
+        'object:moving': e => {
+            onObjectMoving(canvas, e);
+        },
+        'path:created': e => {
+            e.path.set();
+            canvas.renderAll();
+            // console.log(canvas.toJSON())
+        },
+        'selection:created': e => {
+            console.log(e.target);
+        },
+        'object:scaling': e => {
+            isDown = false;
+            const obj = e.target;
+            obj.setCoords();
+            const brNew = obj.getBoundingRect();
 
-    canvas.on('mouse:out', function (e) {
-        // e.target.set('fill', 'green');
-        canvas.renderAll();
-    });
-
-    canvas.on('mouse:down', function (e) {
-        onMouseDown(e, pageNumber);
-    });
-
-    canvas.on('mouse:up', function (e) {
-        onMouseUp(e);
-    });
-
-    canvas.on('mouse:move', function (e) {
-        if (isDown) onMouseMove(e);
-    });
-
-    canvas.on('object:moving', function (e) {
-        onObjectMoving(e);
-    });
-
-    canvas.on('path:created', function(e) {
-        e.path.set();
-        canvas.renderAll();
-        // console.log(canvas.toJSON())
-    })
-
-    let left1 = 0;
-    let top1 = 0;
-    let scale1x = 0;
-    let scale1y = 0;
-    let width1 = 0;
-    let height1 = 0;
-    canvas.on('object:scaling', function (e) {
-        isDown = false;
-        let obj = e.target;
-        obj.setCoords();
-        let brNew = obj.getBoundingRect();
-
-        if (((brNew.width + brNew.left) >= obj.canvas.width) || ((brNew.height + brNew.top) >= obj.canvas.height) || ((brNew.left < 0) || (brNew.top < 0))) {
-            obj.left = left1;
-            obj.top = top1;
-            obj.scaleX = scale1x;
-            obj.scaleY = scale1y;
-            obj.width = width1;
-            obj.height = height1;
-        } else {
-            left1 = obj.left;
-            top1 = obj.top;
-            scale1x = obj.scaleX;
-            scale1y = obj.scaleY;
-            width1 = obj.width;
-            height1 = obj.height;
+            if (
+                brNew.width + brNew.left >= obj.canvas.width ||
+                brNew.height + brNew.top >= obj.canvas.height ||
+                (brNew.left < 0 || brNew.top < 0)
+            ) {
+                obj.left = leftScale;
+                obj.top = topScale;
+                obj.scaleX = scaleXScale;
+                obj.scaleY = scaleYScale;
+                obj.width = widthScale;
+                obj.height = heightScale;
+            } else {
+                leftScale = obj.left;
+                topScale = obj.top;
+                scaleXScale = obj.scaleX;
+                scaleYScale = obj.scaleY;
+                widthScale = obj.width;
+                heightScale = obj.height;
+            }
+            canvas.requestRenderAll();
+        },
+        'object:rotating': e => {
+            isDown = false;
         }
-        canvas.requestRenderAll();
     });
-
-    canvas.on('object:rotating', e => {
-        isDown = false;
-    })
 }
 
-function onObjectMoving(e) {
+function onObjectMoving(canvas, e) {
     if (action !== '') {
         isDown = false;
     }
@@ -376,7 +399,7 @@ function onObjectMoving(e) {
     canvas.requestRenderAll();
 }
 
-function onMouseMove(e) {
+function onMouseMove(canvas, e) {
     const pointer = canvas.getPointer(e.e);
     if (pointer.x <= 0) {
         pointer.x = 0;
@@ -408,7 +431,7 @@ function onMouseMove(e) {
     canvas.requestRenderAll();
 }
 
-function onMouseUp(e) {
+function onMouseUp(canvas, e) {
     if (objectAnnot && (objectAnnot.width === 0 || objectAnnot.height === 0)) {
         canvas.remove(objectAnnot);
     }
@@ -417,7 +440,7 @@ function onMouseUp(e) {
     canvas.requestRenderAll();
 }
 
-function onMouseDown(e, pageNumber) {
+function onMouseDown(canvas, e) {
     isDown = true;
     const pointer = canvas.getPointer(e.e);
     origX = pointer.x;
@@ -461,7 +484,7 @@ function onMouseDown(e, pageNumber) {
 //  update props for annot
     if (!['free-draw'].includes(action)) {
         objectAnnot['uuid'] = util.uuid();
-        objectAnnot['page'] = pageNumber;
+        objectAnnot['page'] = canvas.page;
         objectAnnot['class'] = 'Annotation';
         objectAnnot['createdAt'] = util.getCreatedAt(true);
         objectAnnot['createdBy'] = 'Anonymous';
