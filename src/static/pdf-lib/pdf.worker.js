@@ -18328,7 +18328,7 @@ class AnnotationFactory {
       default:
         if (!collectFields) {
           if (!subtype) {
-            (0, _util.warn)("Annotation is missing the required /Subtype.");
+            (0, _util.warn)("RectangleAnnotation is missing the required /Subtype.");
           } else {
             (0, _util.warn)(`Unimplemented annotation type "${subtype}", ` + "falling back to base annotationUtil.js.");
           }

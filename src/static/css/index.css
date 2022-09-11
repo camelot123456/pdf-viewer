@@ -44,3 +44,11 @@ body {
 .hidden {
     display: none;
 }
+
+#doc-name {
+    background: #0085ff;
+    color: white;
+    font-size: 18px;
+    text-align: center;
+    line-height: 36px;
+}

@@ -10349,7 +10349,7 @@ class TextAnnotationElement extends AnnotationElement {
     image.style.height = this.container.style.height;
     image.style.width = this.container.style.width;
     image.src = this.imageResourcesPath + "annotationUtil.js-" + this.data.name.toLowerCase() + ".svg";
-    image.alt = "[{{type}} Annotation]";
+    image.alt = "[{{type}} RectangleAnnotation]";
     image.dataset.l10nId = "text_annotation_type";
     image.dataset.l10nArgs = JSON.stringify({
       type: this.data.name

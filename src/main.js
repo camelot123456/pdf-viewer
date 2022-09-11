@@ -1,7 +1,8 @@
 'use strict';
 import {data} from './static/data-sample/data-docs.js';
 import * as util from './utils/util.js';
-import {ICON} from "./utils/constants.js";
+import {ICON} from './utils/constants.js';
+import * as annotsStorage from './utils/localStorageManagement.js'
 
 if (!pdfjsLib.getDocument || !pdfjsViewer.PDFPageView) {
     alert('Please build the pdfjs-dist library using\n  `gulp dist-install`');
@@ -10,20 +11,31 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = './static/pdf-lib/pdf.worker.js';
 const CMAP_URL = './static/pdf-lib/cmaps/';
 const CMAP_PACKED = true;
 let scaleDefault = 1.0;
-let rotationDefault = 90;
+let rotationDefault = 0;
 const ENABLE_XFA = true;
 
 const container = document.getElementById("pageContainer");
 const eventBus = new pdfjsViewer.EventBus();
 // declare var
 let isDown = false;
+let isEditAnnots = false;
 let origX;
 let origY;
 let action;
 let objectAnnot;
-// let canvas;
 let canvasArr = [];
+let pdfPageViewArr = [];
 let documentSrc;
+let docInfo = {
+    src: null,
+    docId: '',
+    docName: '',
+    pages: 0,
+    page: 1,
+    rotate: 0,
+    scale: 1.0
+};
+let loadingTask;
 // declare var
 
 // start init
@@ -52,13 +64,14 @@ function deleteObject(eventData, transform) {
             canvas.remove(target);
         }
     }
+    annotsStorage.deleteAnnot(docInfo.docId, target.get('uuid'));
     canvas.requestRenderAll();
 }
 
 function duplicateObject(eventData, transform) {
     const target = transform.target;
     const canvas = target.canvas;
-    target.clone(function(cloned) {
+    target.clone(function (cloned) {
         cloned.left += 10;
         cloned.top += 10;
         canvas.add(cloned);
@@ -130,7 +143,7 @@ function renderListDocs() {
         item.classList.add('docs-item');
         item.textContent = `doc ${i + 1}`;
         item.addEventListener('click', async e => {
-            await renderPdf(data[i].path, scaleDefault, rotationDefault);
+            await changeDocument(data[i].path, data[i].docId);
         });
         listDocs.appendChild(item);
     }
@@ -154,6 +167,8 @@ function chooseAction(_action) {
             break;
         case 'non-select':
             canvasArr.forEach(cs => {
+                console.log(cs.toJSON());
+                console.log(cs.getObjects());
                 if (cs.getActiveObject() !== undefined) {
                     cs.discardActiveObject();
                     cs.requestRenderAll();
@@ -176,6 +191,7 @@ function chooseAction(_action) {
                         cs.requestRenderAll();
                     });
                 });
+                annotsStorage.deleteAllAnnot(docInfo.docId);
             }
             break;
     }
@@ -183,34 +199,118 @@ function chooseAction(_action) {
 
 async function choosePdfTool(_toolName) {
     switch (_toolName) {
+        case 'reset':
+            pdfPageViewArr.forEach(pdfPageView => {
+                pdfPageView.reset({keepZoomLayer: true, keepAnnotationLayer: true, keepXfaLayer: true});
+            });
+            break;
         case 'zoom-in':
-            await renderPdf(documentSrc, scaleDefault + 0.1, rotationDefault);
-            // if(canvas.getZoom() > 15)
-            //     return;
-            // canvas.zoomToPoint(new fabric.Point(canvas.width / 2, canvas.height / 2), canvas.getZoom() * 1.1);
+            // pdfPageViewArr.forEach(pdfPageView => {
+            //     pdfPageView.update({scale: scaleDefault});
+            // });
+            scaleDefault = scaleDefault / 1.1;
+            if (scaleDefault < 0.3) {
+                return;
+            }
+            await renderPdf(docInfo.src, scaleDefault, rotationDefault);
+            canvasArr.forEach(canvas => {
+                if (canvas.getZoom() > 15)
+                    return;
+                canvas.zoomToPoint(new fabric.Point(canvas.width / 2, canvas.height / 2), canvas.getZoom() * 1.1);
+            });
             break;
         case 'zoom-out':
-            await renderPdf(documentSrc, scaleDefault + 0.1, rotationDefault);
-            // if(canvas.getZoom() < 0.3)
-            //     return;
-            // canvas.zoomToPoint(new fabric.Point(canvas.width / 2, canvas.height / 2), canvas.getZoom() / 1.1);
+            scaleDefault = scaleDefault / 1.1;
+            if (scaleDefault < 0.3) {
+                return;
+            }
+            await renderPdf(docInfo.src, scaleDefault, rotationDefault);
+            canvasArr.forEach(canvas => {
+                if (canvas.getZoom() < 0.3)
+                    return;
+                canvas.zoomToPoint(new fabric.Point(canvas.width / 2, canvas.height / 2), canvas.getZoom() / 1.1);
+            });
             break;
         case 'rotate-left':
-            await renderPdf(documentSrc, scaleDefault, rotationDefault - 90);
-            // if(canvas.getZoom() > 15)
-            //     return;
-            // canvas.zoomToPoint(new fabric.Point(canvas.width / 2, canvas.height / 2), canvas.getZoom() * 1.1);
+            rotationDefault = (rotationDefault - 90) % 360;
+            await renderPdf(docInfo.src, scaleDefault, rotationDefault);
+            // canvasArr.forEach(canvas => {
+            //     onRotate(canvas, -90);
+            // });
             break;
         case 'rotate-right':
-            await renderPdf(documentSrc, scaleDefault, rotationDefault + 90);
-            // if(canvas.getZoom() < 0.3)
-            //     return;
-            // canvas.zoomToPoint(new fabric.Point(canvas.width / 2, canvas.height / 2), canvas.getZoom() / 1.1);
+            rotationDefault = (rotationDefault + 90) % 360;
+            await renderPdf(docInfo.src, scaleDefault, rotationDefault);
+            // pdfPageViewArr.forEach(pdfPageView => {
+            //     pdfPageView.update({scale: scaleDefault, rotation: rotationDefault});
+            // });
             break;
     }
 }
 
-async function changeDocument(src) {
+function onRotate(canvas, degrees) {
+    let PositionAdjustment = 0;
+    if (degrees === -90) {
+        PositionAdjustment = (canvas.height - canvas.width) / 2;
+    } else {
+        PositionAdjustment = (canvas.width - canvas.height) / 2;
+    }
+    const canvasCenter = new fabric.Point(canvas.width / 2, canvas.height / 2);
+    // center of canvas
+    const radians = fabric.util.degreesToRadians(degrees);
+    canvas.getObjects().forEach(obj => {
+        const objectOrigin = new fabric.Point(obj.left + PositionAdjustment, obj.top + PositionAdjustment);
+        const new_loc = fabric.util.rotatePoint(objectOrigin, canvasCenter, radians);
+        obj.top = new_loc.y;
+        obj.left = new_loc.x;
+        // rotate each object by the same angle
+        obj.angle += degrees;
+        obj.setCoords();
+    });
+    // onRotateBackground(canvas, degrees);
+    if ([0, 180, -180].includes(rotationDefault % 360)) {
+        canvas.setWidth(canvas.width);
+        canvas.setHeight(canvas.height);
+    } else {
+        canvas.setWidth(canvas.width);
+        canvas.setHeight(canvas.height);
+    }
+    canvas.setDimensions({
+        width: canvas.getWidth(),
+        height: canvas.getHeight()
+    });
+    canvas.requestRenderAll();
+}
+
+function onRotateBackground(canvas, degrees) {
+    let PositionAdjustment = 0;
+    if (degrees === -90) {
+        PositionAdjustment = (canvas.height - canvas.width) / 2;
+    } else {
+        PositionAdjustment = (canvas.width - canvas.height) / 2;
+    }
+    const canvasCenter = new fabric.Point(canvas.width / 2, canvas.height / 2);
+    // center of canvas
+    const radians = fabric.util.degreesToRadians(degrees);
+    const origin = new fabric.Point(
+        canvas.backgroundImage.left + PositionAdjustment,
+        canvas.backgroundImage.top + PositionAdjustment
+    );
+    const loc = fabric.util.rotatePoint(origin, canvasCenter, radians);
+    const angle = rotationDefault % 360;
+    canvas.backgroundImage.rotate(angle);
+    canvas.backgroundImage.set({
+        left: loc.x,
+        top: loc.y
+    });
+    canvas.backgroundImage.setCoords();
+}
+
+async function changeDocument(src, docId) {
+    docInfo.docId = docId;
+    docInfo.docName = docId;
+    docInfo.src = src;
+    annotsStorage.initKey(docInfo.docId);
     await renderPdf(src, scaleDefault, rotationDefault);
 }
 
@@ -222,14 +322,14 @@ async function renderPdf(src, scale, rotate) {
     const pageContainer = document.querySelector('#pageContainer');
     pageContainer.innerHTML = '';
     // Loading document.
-    let loadingTask = pdfjsLib.getDocument({
+    loadingTask = pdfjsLib.getDocument({
         url: src,
         cMapUrl: CMAP_URL,
         cMapPacked: CMAP_PACKED,
         enableXfa: ENABLE_XFA,
     });
 
-    loadingTask.onPassword = function (updatePassword, reason) {
+    loadingTask.onPassword = (updatePassword, reason) => {
         if (reason === 1) { // need a password
             const new_password = prompt('Please enter a password:');
             updatePassword(new_password);
@@ -239,12 +339,27 @@ async function renderPdf(src, scale, rotate) {
         }
     };
 
-    const pdfDocument = await loadingTask.promise;
-    const numPages = pdfDocument.numPages;
+    loadingTask.onProgress = (resp) => {
+        updateDisplayName(docInfo.docName);
+    };
 
-    for (let pageNumber = 1; pageNumber <= numPages; pageNumber++) {
-        await renderPage(pdfDocument, pageNumber, scale, rotate);
+    await loadingTask.promise
+        .then(async pdfDocument => {
+            const numPages = pdfDocument.numPages;
+            docInfo.pages = numPages;
+            for (let pageNumber = 1; pageNumber <= numPages; pageNumber++) {
+                await renderPage(pdfDocument, pageNumber, scale, rotate);
+            }
+        }).catch(err => {
+            console.log(err);
+        });
+
+
+    if (loadingTask.destroyed) {
+        loadingTask.destroy();
     }
+    // const pdfDocument = await loadingTask.promise;
+
 }
 
 async function renderPage(pdfDocument, pageNumber, _scale, _rotate) {
@@ -268,9 +383,10 @@ async function renderPage(pdfDocument, pageNumber, _scale, _rotate) {
         structTreeLayerFactory: new pdfjsViewer.DefaultStructTreeLayerFactory(),
     });
     // Associate the actual page with the view, and draw it.
-
+    pdfPageView.rotation = _rotate;
     pdfPageView.setPdfPage(pdfPage);
     return pdfPageView.draw().then(() => {
+        pdfPageView.textLayer.enhanceTextSelection = true;
         const pageItem = document.getElementsByClassName('page')[pageNumber - 1];
         pageItem.setAttribute('id', `pageContainer${pageNumber}`);
         pageItem.style.margin = '10px 0px';
@@ -279,7 +395,6 @@ async function renderPage(pdfDocument, pageNumber, _scale, _rotate) {
         const canvasWrapper = page.querySelector('.canvasWrapper canvas');
         canvasWrapper.setAttribute('id', `pageContainer-canvas-${pageNumber}`);
         const src = canvasWrapper.toDataURL({format: 'png', enableRetinaScaling: true});
-
         const canvas = new fabric.Canvas(canvasWrapper, {
             hoverCursor: 'pointer',
             selection: true
@@ -304,6 +419,7 @@ async function renderPage(pdfDocument, pageNumber, _scale, _rotate) {
         handleEventCanvas(canvas, pageNumber);
         util.randomAnnots(canvas);
         canvasArr.push(canvas);
+        pdfPageViewArr.push(pdfPageView);
     });
 }
 
@@ -338,7 +454,6 @@ async function handleEventCanvas(canvas, pageNumber) {
         'path:created': e => {
             e.path.set();
             canvas.renderAll();
-            // console.log(canvas.toJSON())
         },
         'selection:created': e => {
             console.log(e.target);
@@ -372,6 +487,10 @@ async function handleEventCanvas(canvas, pageNumber) {
         },
         'object:rotating': e => {
             isDown = false;
+        },
+        'object:modified': e => {
+            isEditAnnots = true;
+            // console.log(e.target);
         }
     });
 }
@@ -432,12 +551,23 @@ function onMouseMove(canvas, e) {
 }
 
 function onMouseUp(canvas, e) {
+    console.log(objectAnnot);
+    // if (isEditAnnots) {
+    //     annotsStorage.editAnnot(docInfo.docId, e.target.get('uuid'), e.target);
+    // } else {
+    //     if (e.target) {
+    //
+    //     }
+    //     annotsStorage.addAnnot(docInfo.docId, e.target);
+    // }
     if (objectAnnot && (objectAnnot.width === 0 || objectAnnot.height === 0)) {
         canvas.remove(objectAnnot);
     }
     objectAnnot = undefined;
     isDown = false;
     canvas.requestRenderAll();
+
+    isEditAnnots = false;
 }
 
 function onMouseDown(canvas, e) {
@@ -460,7 +590,7 @@ function onMouseDown(canvas, e) {
             //     affectStroke: true,
             //     color: '#ff0',
             // });
-            objectAnnot = undefined;
+            objectAnnot = canvas.freeDrawingBrush;
             break;
         case 'rectangle':
             objectAnnot = new fabric.Rect({
@@ -476,24 +606,28 @@ function onMouseDown(canvas, e) {
                 hasControls: true,
                 strokeUniform: true
             });
+            objectAnnot.setControlsVisibility({
+                mtr: true
+            });
             canvas.add(objectAnnot);
             break;
         default:
             return null;
     }
-//  update props for annot
-    if (!['free-draw'].includes(action)) {
-        objectAnnot['uuid'] = util.uuid();
-        objectAnnot['page'] = canvas.page;
-        objectAnnot['class'] = 'Annotation';
-        objectAnnot['createdAt'] = util.getCreatedAt(true);
-        objectAnnot['createdBy'] = 'Anonymous';
-        objectAnnot['state'] = action;
-        objectAnnot['isBurned'] = false;
-        objectAnnot['initialWidth'] = canvas.getWidth();
+//     if (!['free-draw'].includes(action)) {
+    objectAnnot['uuid'] = util.uuid();
+    objectAnnot['page'] = canvas.page;
+    objectAnnot['class'] = 'Annotation';
+    objectAnnot['createdAt'] = util.getCreatedAt(true);
+    objectAnnot['createdBy'] = 'Anonymous';
+    objectAnnot['state'] = action;
+    objectAnnot['isBurned'] = false;
+    objectAnnot['initialWidth'] = canvas.getWidth();
+}
 
-        objectAnnot.setControlsVisibility({
-            mtr: true
-        });
+function updateDisplayName(name) {
+    const docName = document.querySelector(`#doc-name`);
+    if (docName) {
+        docName.innerHTML = name;
     }
 }
