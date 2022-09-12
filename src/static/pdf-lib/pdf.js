@@ -1724,7 +1724,7 @@ class PDFPageProxy {
           if (annotation.titleObj !== undefined) {
             Object.defineProperty(annotation, "title", {
               get() {
-                (0, _display_utils.deprecated)("`title`-property on annotationUtil.js, please use `titleObj` instead.");
+                (0, _display_utils.deprecated)("`title`-property on annotation, please use `titleObj` instead.");
                 return annotation.titleObj.str;
               }
 
@@ -1734,7 +1734,7 @@ class PDFPageProxy {
           if (annotation.contentsObj !== undefined) {
             Object.defineProperty(annotation, "contents", {
               get() {
-                (0, _display_utils.deprecated)("`contents`-property on annotationUtil.js, please use `contentsObj` instead.");
+                (0, _display_utils.deprecated)("`contents`-property on annotation, please use `contentsObj` instead.");
                 return annotation.contentsObj.str;
               }
 
@@ -9773,7 +9773,7 @@ class AnnotationElement {
       width,
       height
     } = getRectDims(data.rect);
-    container.setAttribute("data-annotationUtil.js-id", data.id);
+    container.setAttribute("data-annotation-id", data.id);
 
     const rect = _util.Util.normalizeRect([data.rect[0], page.view[3] - data.rect[1] + page.view[1], data.rect[2], page.view[3] - data.rect[3] + page.view[1]]);
 
@@ -10348,8 +10348,8 @@ class TextAnnotationElement extends AnnotationElement {
     const image = document.createElement("img");
     image.style.height = this.container.style.height;
     image.style.width = this.container.style.width;
-    image.src = this.imageResourcesPath + "annotationUtil.js-" + this.data.name.toLowerCase() + ".svg";
-    image.alt = "[{{type}} RectangleAnnotation]";
+    image.src = this.imageResourcesPath + "annotation-" + this.data.name.toLowerCase() + ".svg";
+    image.alt = "[{{type}} Annotation]";
     image.dataset.l10nId = "text_annotation_type";
     image.dataset.l10nArgs = JSON.stringify({
       type: this.data.name

@@ -198,6 +198,7 @@
 .annotationLayer .choiceWidgetAnnotation select:focus {
   background: none;
   border: 1px solid transparent;
+  outline: aquamarine;
 }
 
 .annotationLayer .textWidgetAnnotation input :focus,
@@ -207,7 +208,7 @@
 .annotationLayer .buttonWidgetAnnotation.radioButton :focus {
   background-image: none;
   background-color: transparent;
-  outline: auto;
+  outline: aquamarine;
 }
 
 .annotationLayer .buttonWidgetAnnotation.checkBox input:checked:before,
@@ -217,6 +218,7 @@
   content: "";
   display: block;
   position: absolute;
+  outline: aquamarine;
 }
 
 .annotationLayer .buttonWidgetAnnotation.checkBox input:checked:before,

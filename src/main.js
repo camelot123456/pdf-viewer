@@ -14,8 +14,6 @@ let scaleDefault = 1.0;
 let rotationDefault = 0;
 const ENABLE_XFA = true;
 
-const container = document.getElementById("pageContainer");
-const eventBus = new pdfjsViewer.EventBus();
 // declare var
 let isDown = false;
 let isEditAnnots = false;
@@ -25,8 +23,8 @@ let action;
 let objectAnnot;
 let canvasArr = [];
 let pdfPageViewArr = [];
-let documentSrc;
 let docInfo = {
+    pdfDocument: null,
     src: null,
     docId: '',
     docName: '',
@@ -36,6 +34,8 @@ let docInfo = {
     scale: 1.0
 };
 let loadingTask;
+let pdfDocuments = [];
+let testRotate = 0;
 // declare var
 
 // start init
@@ -200,9 +200,10 @@ function chooseAction(_action) {
 async function choosePdfTool(_toolName) {
     switch (_toolName) {
         case 'reset':
-            pdfPageViewArr.forEach(pdfPageView => {
-                pdfPageView.reset({keepZoomLayer: true, keepAnnotationLayer: true, keepXfaLayer: true});
-            });
+            pdfPageViewArr.forEach(lt => console.log(lt));
+            // pdfPageViewArr.forEach(pdfPageView => {
+            //     pdfPageView.reset({keepZoomLayer: true, keepAnnotationLayer: true, keepXfaLayer: true});
+            // });
             break;
         case 'zoom-in':
             // pdfPageViewArr.forEach(pdfPageView => {
@@ -231,82 +232,20 @@ async function choosePdfTool(_toolName) {
                 canvas.zoomToPoint(new fabric.Point(canvas.width / 2, canvas.height / 2), canvas.getZoom() / 1.1);
             });
             break;
-        case 'rotate-left':
-            rotationDefault = (rotationDefault - 90) % 360;
-            await renderPdf(docInfo.src, scaleDefault, rotationDefault);
-            // canvasArr.forEach(canvas => {
-            //     onRotate(canvas, -90);
-            // });
-            break;
-        case 'rotate-right':
-            rotationDefault = (rotationDefault + 90) % 360;
-            await renderPdf(docInfo.src, scaleDefault, rotationDefault);
-            // pdfPageViewArr.forEach(pdfPageView => {
-            //     pdfPageView.update({scale: scaleDefault, rotation: rotationDefault});
-            // });
-            break;
     }
-}
-
-function onRotate(canvas, degrees) {
-    let PositionAdjustment = 0;
-    if (degrees === -90) {
-        PositionAdjustment = (canvas.height - canvas.width) / 2;
-    } else {
-        PositionAdjustment = (canvas.width - canvas.height) / 2;
-    }
-    const canvasCenter = new fabric.Point(canvas.width / 2, canvas.height / 2);
-    // center of canvas
-    const radians = fabric.util.degreesToRadians(degrees);
-    canvas.getObjects().forEach(obj => {
-        const objectOrigin = new fabric.Point(obj.left + PositionAdjustment, obj.top + PositionAdjustment);
-        const new_loc = fabric.util.rotatePoint(objectOrigin, canvasCenter, radians);
-        obj.top = new_loc.y;
-        obj.left = new_loc.x;
-        // rotate each object by the same angle
-        obj.angle += degrees;
-        obj.setCoords();
-    });
-    // onRotateBackground(canvas, degrees);
-    if ([0, 180, -180].includes(rotationDefault % 360)) {
-        canvas.setWidth(canvas.width);
-        canvas.setHeight(canvas.height);
-    } else {
-        canvas.setWidth(canvas.width);
-        canvas.setHeight(canvas.height);
-    }
-    canvas.setDimensions({
-        width: canvas.getWidth(),
-        height: canvas.getHeight()
-    });
-    canvas.requestRenderAll();
-}
-
-function onRotateBackground(canvas, degrees) {
-    let PositionAdjustment = 0;
-    if (degrees === -90) {
-        PositionAdjustment = (canvas.height - canvas.width) / 2;
-    } else {
-        PositionAdjustment = (canvas.width - canvas.height) / 2;
-    }
-    const canvasCenter = new fabric.Point(canvas.width / 2, canvas.height / 2);
-    // center of canvas
-    const radians = fabric.util.degreesToRadians(degrees);
-    const origin = new fabric.Point(
-        canvas.backgroundImage.left + PositionAdjustment,
-        canvas.backgroundImage.top + PositionAdjustment
-    );
-    const loc = fabric.util.rotatePoint(origin, canvasCenter, radians);
-    const angle = rotationDefault % 360;
-    canvas.backgroundImage.rotate(angle);
-    canvas.backgroundImage.set({
-        left: loc.x,
-        top: loc.y
-    });
-    canvas.backgroundImage.setCoords();
 }
 
 async function changeDocument(src, docId) {
+
+
+    // pageContainer.innerHTML = '';
+    // if (pageContainer)
+    //     pageContainer.remove();
+    // pageContainer = document.createElement('div');
+    // pageContainer.id = 'pageContainer';
+    // const container = document.querySelector('.container');
+    // container.appendChild(pageContainer);
+
     docInfo.docId = docId;
     docInfo.docName = docId;
     docInfo.src = src;
@@ -317,61 +256,47 @@ async function changeDocument(src, docId) {
 // end init
 
 async function renderPdf(src, scale, rotate) {
-    canvasArr = [];
-    documentSrc = src;
-    const pageContainer = document.querySelector('#pageContainer');
+    // cleanPage();
+    destroyWorker();
+    // destroyPdfPageView();
+
+    let pageContainer = document.querySelector('#pageContainer');
     pageContainer.innerHTML = '';
-    // Loading document.
-    loadingTask = pdfjsLib.getDocument({
-        url: src,
-        cMapUrl: CMAP_URL,
-        cMapPacked: CMAP_PACKED,
-        enableXfa: ENABLE_XFA,
+    // pageContainer.remove();
+    // pageContainer = document.createElement('div');
+    // pageContainer.id = 'pageContainer';
+    // const container = document.querySelector('.container');
+    // container.appendChild(pageContainer);
+    canvasArr = [];
+
+    createWorker().then(async () => {
+        await loadingTask.promise
+            .then(async pdfDocument => {
+                const numPages = pdfDocument.numPages;
+                docInfo.pages = numPages;
+                docInfo.pdfDocument = pdfDocument;
+                for (let pageNumber = 1; pageNumber <= numPages; pageNumber++) {
+                    await renderPage(pdfDocument, pageNumber, scale, rotate);
+                }
+            }).catch(err => {
+                console.log(err);
+            });
+        // const pdfDocument = await loadingTask.promise;
     });
-
-    loadingTask.onPassword = (updatePassword, reason) => {
-        if (reason === 1) { // need a password
-            const new_password = prompt('Please enter a password:');
-            updatePassword(new_password);
-        } else { // Invalid password
-            const new_password = prompt('Invalid! Please enter a password:');
-            updatePassword(new_password);
-        }
-    };
-
-    loadingTask.onProgress = (resp) => {
-        updateDisplayName(docInfo.docName);
-    };
-
-    await loadingTask.promise
-        .then(async pdfDocument => {
-            const numPages = pdfDocument.numPages;
-            docInfo.pages = numPages;
-            for (let pageNumber = 1; pageNumber <= numPages; pageNumber++) {
-                await renderPage(pdfDocument, pageNumber, scale, rotate);
-            }
-        }).catch(err => {
-            console.log(err);
-        });
-
-
-    if (loadingTask.destroyed) {
-        loadingTask.destroy();
-    }
-    // const pdfDocument = await loadingTask.promise;
 
 }
 
 async function renderPage(pdfDocument, pageNumber, _scale, _rotate) {
     // Document loaded, retrieving the page.
+
     const pdfPage = await pdfDocument.getPage(pageNumber);
     // Creating the page view with default parameters.
     const pdfPageView = new pdfjsViewer.PDFPageView({
-        container,
+        container: document.getElementById('pageContainer'),
         id: pageNumber,
         scale: _scale,
         defaultViewport: pdfPage.getViewport({scale: _scale, rotation: _rotate}),
-        eventBus,
+        eventBus: new pdfjsViewer.EventBus(),
         // We can enable text/annotationUtil.js/xfa/struct-layers, as needed.
         textLayerFactory: !pageNumber.isPureXfa
             ? new pdfjsViewer.DefaultTextLayerFactory()
@@ -382,14 +307,39 @@ async function renderPage(pdfDocument, pageNumber, _scale, _rotate) {
             : null,
         structTreeLayerFactory: new pdfjsViewer.DefaultStructTreeLayerFactory(),
     });
+    pdfDocument.getOptionalContentConfig().then(a => {
+        console.log(a)
+    })
     // Associate the actual page with the view, and draw it.
-    pdfPageView.rotation = _rotate;
+    settingPdfPageView(pageNumber, pdfPage, pdfPageView, _scale, _rotate);
+    document.querySelector('#test0').addEventListener('click', e => {
+        // testRotate = (testRotate + 90) % 360
+        settingPdfPageView(pageNumber, pdfPage, pdfPageView, _scale, 0);
+    })
+    document.querySelector('#test90').addEventListener('click', e => {
+        // testRotate = (testRotate + 90) % 360
+        settingPdfPageView(pageNumber, pdfPage, pdfPageView, _scale, 90);
+    })
+    document.querySelector('#test180').addEventListener('click', e => {
+        // testRotate = (testRotate + 90) % 360
+        settingPdfPageView(pageNumber, pdfPage, pdfPageView, _scale, 180);
+    })
+    document.querySelector('#test270').addEventListener('click', e => {
+        // testRotate = (testRotate + 90) % 360
+        settingPdfPageView(pageNumber, pdfPage, pdfPageView, _scale, 270);
+    })
+}
+
+function settingPdfPageView(pageNumber, pdfPage, pdfPageView, _scale, _rotate) {
+    // pdfPageView.rotation = _rotate;
+    // pdfPageView.scale = _scale;
+    pdfPageView.update({scale: _scale, rotation: _rotate});
     pdfPageView.setPdfPage(pdfPage);
     return pdfPageView.draw().then(() => {
         pdfPageView.textLayer.enhanceTextSelection = true;
         const pageItem = document.getElementsByClassName('page')[pageNumber - 1];
         pageItem.setAttribute('id', `pageContainer${pageNumber}`);
-        pageItem.style.margin = '10px 0px';
+        pageItem.style.margin = '10px 10px';
         return pageItem;
     }).then(page => {
         const canvasWrapper = page.querySelector('.canvasWrapper canvas');
@@ -419,7 +369,6 @@ async function renderPage(pdfDocument, pageNumber, _scale, _rotate) {
         handleEventCanvas(canvas, pageNumber);
         util.randomAnnots(canvas);
         canvasArr.push(canvas);
-        pdfPageViewArr.push(pdfPageView);
     });
 }
 
@@ -630,4 +579,43 @@ function updateDisplayName(name) {
     if (docName) {
         docName.innerHTML = name;
     }
+}
+
+
+async function createWorker() {
+    console.log('create worker')
+    // Loading document.
+    loadingTask = pdfjsLib.getDocument({
+        url: docInfo.src,
+        cMapUrl: CMAP_URL,
+        cMapPacked: CMAP_PACKED,
+        enableXfa: ENABLE_XFA,
+        enableScripting: true,
+    });
+
+    loadingTask.onPassword = (updatePassword, reason) => {
+        if (reason === 1) { // need a password
+            const new_password = prompt('Please enter a password:');
+            updatePassword(new_password);
+        } else { // Invalid password
+            const new_password = prompt('Invalid! Please enter a password:');
+            updatePassword(new_password);
+        }
+    };
+
+}
+
+async function destroyPdfPageView() {
+    console.log(pdfPageViewArr);
+    pdfPageViewArr.forEach(pdf => {
+        pdf.destroy();
+    });
+    pdfPageViewArr = [];
+}
+
+function destroyWorker() {
+    if (loadingTask) {
+        loadingTask.destroy();
+    }
+    loadingTask = null;
 }

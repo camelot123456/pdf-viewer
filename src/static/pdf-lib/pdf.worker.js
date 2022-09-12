@@ -3875,7 +3875,7 @@ class Page {
         }
 
         newRefsPromises.push(annotation.save(partialEvaluator, task, annotationStorage).catch(function (reason) {
-          (0, _util.warn)("save - ignoring annotationUtil.js data during " + `"${task.name}" task: "${reason}".`);
+          (0, _util.warn)("save - ignoring annotation data during " + `"${task.name}" task: "${reason}".`);
           return null;
         }));
       }
@@ -3950,7 +3950,7 @@ class Page {
       for (const annotation of annotations) {
         if (intentAny || intentDisplay && annotation.mustBeViewed(annotationStorage) || intentPrint && annotation.mustBePrinted(annotationStorage)) {
           opListPromises.push(annotation.getOperatorList(partialEvaluator, task, intent, renderForms, annotationStorage).catch(function (reason) {
-            (0, _util.warn)("getOperatorList - ignoring annotationUtil.js data during " + `"${task.name}" task: "${reason}".`);
+            (0, _util.warn)("getOperatorList - ignoring annotation data during " + `"${task.name}" task: "${reason}".`);
             return null;
           }));
         }
@@ -18328,9 +18328,9 @@ class AnnotationFactory {
       default:
         if (!collectFields) {
           if (!subtype) {
-            (0, _util.warn)("RectangleAnnotation is missing the required /Subtype.");
+            (0, _util.warn)("Annotation is missing the required /Subtype.");
           } else {
-            (0, _util.warn)(`Unimplemented annotation type "${subtype}", ` + "falling back to base annotationUtil.js.");
+            (0, _util.warn)(`Unimplemented annotation type "${subtype}", ` + "falling back to base annotation.");
           }
         }
 
@@ -19714,7 +19714,7 @@ class ButtonWidgetAnnotation extends WidgetAnnotation {
 
       this._processPushButton(params);
     } else {
-      (0, _util.warn)("Invalid field flags for button widget annotationUtil.js");
+      (0, _util.warn)("Invalid field flags for button widget annotation");
     }
   }
 
@@ -20341,7 +20341,7 @@ class PopupAnnotation extends Annotation {
     let parentItem = parameters.dict.get("Parent");
 
     if (!parentItem) {
-      (0, _util.warn)("Popup annotationUtil.js has a missing or invalid parent annotationUtil.js.");
+      (0, _util.warn)("Popup annotation has a missing or invalid parent annotation.");
       return;
     }
 
