@@ -18,6 +18,16 @@ function randomAnnots(canvas) {
     }
 }
 
+function randomAnnots1(canvas) {
+    const red = new fabric.Rect({
+        top: 100, left: 0, width: 80, height: 50, fill: 'red' });
+    const blue = new fabric.Rect({
+        top: 200, left: 200, width: 50, height: 70, fill: 'blue' });
+    const green = new fabric.Rect({
+        top: 350, left: 250, width: 60, height: 60, fill: 'green' });
+    canvas.add(red, blue, green);
+}
+
 function uuid() {
     return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, c =>
         (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
@@ -38,4 +48,4 @@ function getCreatedAt(isFormatDate) {
     }
 }
 
-export {randomAnnots, uuid, getCreatedAt};
+export {randomAnnots, randomAnnots1, uuid, getCreatedAt};

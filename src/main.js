@@ -33,8 +33,19 @@ let docInfo = {
     pages: 0,
     page: 1,
     rotate: 0,
-    scale: 1.0
+    scale: 1.0,
+    thumbnails: []
 };
+let pdfCanvas = {
+    scale: 1.0,
+    rotation: 0,
+    degrees: 0,
+};
+let canvasSize = {
+    width: 0,
+    height: 0
+};
+
 let loadingTask;
 // declare var
 
@@ -114,92 +125,58 @@ async function renderPdfjsViewer(src) {
     pdfLinkService.setDocument(pdfDocument, null);
     pdfFindController.setDocument(pdfDocument);
 
-    eventBus.on("annotationlayerrendered", evt => {
-        // renderCanvasAnnots(pdfViewer._pages);
-        console.log('annotationlayerrendered');
-    });
-
-    eventBus.on("baseviewerinit", evt => {
-        // renderCanvasAnnots(pdfViewer._pages);
-        console.log('baseviewerinit');
-    });
-
-    eventBus.on("rotationchanging", evt => {
-        // renderCanvasAnnots(pdfViewer._pages);
-        console.log('rotationchanging');
-    });
-
-    eventBus.on("pagesdestroy", evt => {
-        // renderCanvasAnnots(pdfViewer._pages);
-        console.log('pagesdestroy');
+    eventBus.on("pagesinit", evt => {
+        pdfViewer.currentScaleValue = "page-actual";
     });
 
     eventBus.on("pagesloaded", evt => {
-        // renderCanvasAnnots(pdfViewer._pages);
-        console.log('pagesloaded');
+        pageCountLbl.innerText = evt.pagesCount;
+    });
+
+    eventBus.on("annotationlayerrendered", evt => {
+        // console.log('annotationlayerrendered', evt);
+    });
+
+    eventBus.on("rotationchanging", evt => {
+        pdfCanvas.rotation = evt.pagesRotation;
+        console.log('rotationchanging', evt);
+    });
+
+    eventBus.on("pagerendered", evt => {
+        if (evt.error) {
+            alert(evt.error)
+        }
+        settingPdfPageView(evt.source);
+        docInfo.thumbnails.push(evt.source.canvas.toDataURL({type: "png"}));
     });
 
     eventBus.on("pagerender", evt => {
-        // renderCanvasAnnots(pdfViewer._pages);
-        console.log('pagerendered');
-    });
-
-    eventBus.on("pagerender", evt => {
-        // renderCanvasAnnots(pdfViewer._pages);
-        console.log('pagerendered');
+        // console.log('pagerender', evt);
     });
 
     eventBus.on("scalechanging", evt => {
-        // renderCanvasAnnots(pdfViewer._pages);
-        console.log('scalechanging');
+        pdfCanvas.scale = evt.scale;
+        console.log('scalechanging', evt);
+        // settingPdfPageView(evt.source, evt.scale);
     });
 
     eventBus.on("updateviewarea", evt => {
-        // renderCanvasAnnots(pdfViewer._pages);
-        console.log('updateviewarea');
-    });
-
-    eventBus.on("optionalcontentconfigchanged", evt => {
-        // renderCanvasAnnots(pdfViewer._pages);
-        console.log('optionalcontentconfigchanged');
-    });
-
-    eventBus.on("xfalayerrendered", evt => {
-        // renderCanvasAnnots(pdfViewer._pages);
-        console.log('xfalayerrendered');
+        // console.log('updateviewarea', evt);
     });
 
     eventBus.on("textlayerrendered", evt => {
-        // renderCanvasAnnots(pdfViewer._pages);
-        console.log('textlayerrendered');
+        // console.log('textlayerrendered', evt);
     });
 
     eventBus.on("updatetextlayermatches", evt => {
-        // renderCanvasAnnots(pdfViewer._pages);
-        console.log('updatetextlayermatches');
+        // console.log('updatetextlayermatches', evt);
     });
 
     eventBus.on("pagechanging", evt => {
-        // renderCanvasAnnots(pdfViewer._pages);
-        console.log('pagechanging');
-    });
-
-
-    eventBus.on("pagesinit", function () {
-        // We can use pdfViewer now, e.g. let's change default scale.
-        console.log('pagesinit');
-        pdfViewer.currentScaleValue = "page-actual";
-        pageCountLbl.innerText = pdfDocument.numPages;
-        pdfViewer._getVisiblePages();
+        // console.log('pagechanging', evt);
     });
 
     handleEventPdfTool(pdfFindController, pdfViewer, eventBus);
-}
-
-function renderCanvasAnnots(pdfPageViews) {
-    for (let i = 0; i < pdfPageViews.length; i++) {
-        settingPdfPageView(pdfPageViews[i]);
-    }
 }
 
 function settingPdfPageView(pdfPageView) {
@@ -223,26 +200,76 @@ function settingPdfPageView(pdfPageView) {
         );
     });
     canvas.page = pdfPageView.id;
-
-    initOnEvent();
+    canvasSize = {
+        height: canvas.height,
+        width: canvas.width,
+    };
+    initOnEvent(canvas);
     settingFabricCanvas();
     handleEventCanvas(canvas, pdfPageView.id);
-    util.randomAnnots(canvas);
-    canvasArr.push(canvas);
+    // util.randomAnnots(canvas);
+    util.randomAnnots1(canvas);
+    updateZoom(canvas, pdfCanvas.scale);
 }
 
-function initOnEvent() {
-    const pdfTool = $('#pdf-tool').childNodes;
-    const pdfAction = $('#pdf-annots').childNodes;
-    // pdfTool.forEach(tool => {
-    //     tool.addEventListener('click', e => {
-    //         console.log(tool.id)
-    //         choosePdfTool(tool.id);
-    //     })
+function updateRotate(canvas, rotate) {
+    let PositionAdjustment = 0;
+    if (pdfCanvas.degrees === -90) {
+        PositionAdjustment = (canvasSize.height - canvasSize.width) / 2;
+    } else {
+        PositionAdjustment = (canvasSize.width - canvasSize.height) / 2;
+    }
+    const canvasCenter = new fabric.Point(canvasSize.width / 2, canvasSize.height / 2);
+    // center of canvas
+    const radians = fabric.util.degreesToRadians(pdfCanvas.degrees);
+    canvas.getObjects().forEach(obj => {
+        const objectOrigin = new fabric.Point(obj.left + PositionAdjustment, obj.top + PositionAdjustment);
+        const new_loc = fabric.util.rotatePoint(objectOrigin, canvasCenter, radians);
+        obj.top = new_loc.y;
+        obj.left = new_loc.x;
+        // rotate each object by the same angle
+        obj.angle = pdfCanvas.degrees;
+        obj.setCoords();
+    });
+
+    if ([0, 180, -180].includes(rotate % 360)) {
+        canvas.setWidth(canvasSize.height * canvas.getZoom());
+        canvas.setHeight(canvasSize.width * canvas.getZoom());
+    } else {
+        canvas.setWidth(canvasSize.height * canvas.getZoom());
+        canvas.setHeight(canvasSize.width * canvas.getZoom());
+    }
+    canvasSize = {
+        width: canvas.getWidth() / canvas.getZoom(),
+        height: canvas.getHeight() / canvas.getZoom()
+    };
+    // canvas.setDimensions({
+    //     width: canvas.getWidth(),
+    //     height: canvas.getHeight()
     // });
+    canvas.requestRenderAll();
+}
+
+function updateZoom(canvas, scale) {
+    canvas.getObjects().forEach(obj => {
+        obj.top = obj.top * scale;
+        obj.left = obj.left * scale;
+        obj.width = obj.width * scale;
+        obj.height = obj.height * scale;
+        obj.setCoords();
+    });
+    canvas.setDimensions({
+        width: canvasSize.width / scale,
+        height: canvasSize.height / scale
+    });
+    canvas.requestRenderAll();
+}
+
+function initOnEvent(canvas) {
+    const pdfAction = $('#pdf-annots').childNodes;
     pdfAction.forEach(action => {
         action.addEventListener('click', e => {
-            chooseAction(action.id);
+            chooseAction(action.id, canvas);
         })
     })
 }
@@ -339,7 +366,7 @@ function renderListDocs() {
     }
 }
 
-function chooseAction(_action) {
+function chooseAction(_action, canvas) {
     action = _action;
     const canvasWrappers = Array.from($$('#viewerContainer #viewer .page'));
     switch (_action) {
@@ -356,14 +383,10 @@ function chooseAction(_action) {
             });
             break;
         case 'non-select':
-            canvasArr.forEach(cs => {
-                // console.log(cs.toJSON());
-                // console.log(cs.getObjects());
-                if (cs.getActiveObject() !== undefined) {
-                    cs.discardActiveObject();
-                    cs.requestRenderAll();
-                }
-            });
+            if (canvas.getActiveObject() !== undefined) {
+                canvas.discardActiveObject();
+                canvas.requestRenderAll();
+            }
             canvasWrappers.forEach(element => {
                 if (element.querySelector('.textLayer')) {
                     element.querySelector('.textLayer').classList.remove('hidden');
@@ -374,14 +397,12 @@ function chooseAction(_action) {
             });
             break;
         case 'clear':
-            if (confirm('Are you sure, clear?')) {
-                canvasArr.forEach(async cs => {
-                    await cs.getObjects().forEach(obj => {
-                        cs.remove(obj);
-                        cs.requestRenderAll();
-                    });
+            // if (confirm('Are you sure, clear?')) {
+                canvas.getObjects().forEach(obj => {
+                    canvas.remove(obj);
+                    canvas.requestRenderAll();
                 });
-            }
+            // }
             break;
     }
 }
@@ -394,10 +415,12 @@ function handleEventPdfTool(pdfFindController, pdfViewer, eventBus) {
         pdfViewer.decreaseScale(DEFAULT_SCALE_SIZE);
     });
     rlBtn.addEventListener('click', e => {
+        pdfCanvas.degrees = -90;
         const rotateVal = (pdfViewer.pagesRotation - 90) % 360;
         pdfViewer.pagesRotation = rotateVal;
     });
     rrBtn.addEventListener('click', e => {
+        pdfCanvas.degrees = 90;
         const rotateVal = (pdfViewer.pagesRotation + 90) % 360;
         pdfViewer.pagesRotation = rotateVal;
     });
@@ -417,9 +440,8 @@ function handleEventPdfTool(pdfFindController, pdfViewer, eventBus) {
         pdfViewer._setScale(scaleModeSelect.value);
     });
     refreshBtn.addEventListener('click', e => {
-        pdfViewer.refresh();
-    });
 
+    });
     findEdit.addEventListener('blur', e => {
         eventBus.dispatch("find", {
             type: "again",
@@ -432,11 +454,6 @@ function handleEventPdfTool(pdfFindController, pdfViewer, eventBus) {
             matchDiacritics: false,
         });
     });
-
-    findEdit.addEventListener("input", () => {
-        dispatchEvent("findbarclose");
-    });
-
     findPrev.addEventListener("click", () => {
         eventBus.dispatch("find", {
             type: "again",
@@ -449,7 +466,6 @@ function handleEventPdfTool(pdfFindController, pdfViewer, eventBus) {
             matchDiacritics: false,
         });
     });
-
     findNext.addEventListener("click", () => {
         eventBus.dispatch("find", {
             type: "again",
@@ -462,7 +478,6 @@ function handleEventPdfTool(pdfFindController, pdfViewer, eventBus) {
             matchDiacritics: false,
         });
     });
-
     pageEdit.addEventListener("keyup", e => {
         let val = Number(pageEdit.value);
         if (e.keyCode === 13 && val) {
@@ -474,7 +489,9 @@ function handleEventPdfTool(pdfFindController, pdfViewer, eventBus) {
             pdfViewer.scrollPageIntoView({pageNumber: val});
         }
     });
-
+    $('#viewerContainer').addEventListener('scroll', e => {
+        pageEdit.value = pdfViewer.currentPageNumber;
+    });
     showThumbBtn.addEventListener('click', e => {
         // console.log(pdfViewer._pages);
         // console.log(pdfViewer.getPageView(1));
@@ -482,9 +499,9 @@ function handleEventPdfTool(pdfFindController, pdfViewer, eventBus) {
         const thumbnail = document.querySelector('#thumbnail');
         pdfViewer._pages.forEach(async page => {
             setTimeout(async () => {
-                await makeThumb(page.pdfPage).then(data => {
+                await makeThumb(page.pdfPage).then(dataUrl => {
                     const img = document.createElement('img');
-                    img.src = data.toDataURL({format: 'png', enableRetinaScaling: true});
+                    img.src = dataUrl;
                     img.style.margin = '4px 0px';
                     thumbnail.appendChild(img);
                 })
@@ -505,7 +522,7 @@ function makeThumb(page) {
         canvasContext: canvas.getContext("2d"),
         viewport: page.getViewport({scale: scale})
     }).promise.then(function () {
-        return canvas;
+        return canvas.toDataURL({format: 'png', enableRetinaScaling: true});
     });
 }
 
@@ -514,9 +531,7 @@ async function changeDocument(src, docId) {
     docInfo.docName = docId;
     docInfo.src = src;
     updateDisplayName(docInfo.docName);
-    await renderPdfjsViewer(docInfo.src).then(() => {
-        console.log('hello')
-    });
+    await renderPdfjsViewer(docInfo.src);
 }
 
 async function handleEventCanvas(canvas, pageNumber) {
@@ -647,7 +662,10 @@ function onMouseMove(canvas, e) {
 }
 
 function onMouseUp(canvas, e) {
-    console.log(objectAnnot);
+    // console.log(canvas.getObjects());
+    // console.log(canvas.toObject());
+    // console.log(objectAnnot);
+
     // if (isEditAnnots) {
     //     annotsStorage.editAnnot(docInfo.docId, e.target.get('uuid'), e.target);
     // } else {
@@ -677,8 +695,9 @@ function onMouseDown(canvas, e) {
             canvas.isDrawingMode = !canvas.isDrawingMode;
             canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
             canvas.freeDrawingBrush.color = '#f00';
-            canvas.freeDrawingBrush.width = 1;
+            canvas.freeDrawingBrush.width = 2;
             canvas.freeDrawingBrush.limitedToCanvasSize = true;
+            canvas.freeDrawingBrush.strokeUniform = true;
             // canvas.freeDrawingBrush.shadow = new fabric.Shadow({
             //     blur: parseInt(2, 10) || 0,
             //     offsetX: 0,
@@ -732,4 +751,17 @@ function destroyWorker() {
     if (loadingTask) {
         loadingTask.destroy();
     }
+
+    docInfo = {
+        thumbnails: [],
+        src: '',
+        docId: '',
+        docName: '',
+        pages: 0,
+        page: 0,
+        pdfDocument: null,
+        rotate: 0,
+        scale: 1
+    };
+    canvasArr = [];
 }
