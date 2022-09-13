@@ -52,7 +52,8 @@ const refreshBtn = $('#refresh-btn');
 const scrollModeSelect = $('#scroll-mode-select');
 const spreadModeSelect = $('#spread-mode-select');
 const scaleModeSelect = $('#scale-mode-select');
-const findMatch = $('#find-match');
+const findPrev = $('#find-prev');
+const findNext = $('#find-next');
 const DEFAULT_SCALE_SIZE = 1;
 
 // start init
@@ -111,6 +112,7 @@ async function renderPdfjsViewer(src) {
 
     pdfViewer.setDocument(pdfDocument);
     pdfLinkService.setDocument(pdfDocument, null);
+    pdfFindController.setDocument(pdfDocument);
 
     eventBus.on("annotationlayerrendered", evt => {
         // renderCanvasAnnots(pdfViewer._pages);
@@ -188,6 +190,7 @@ async function renderPdfjsViewer(src) {
         console.log('pagesinit');
         pdfViewer.currentScaleValue = "page-actual";
         pageCountLbl.innerText = pdfDocument.numPages;
+        pdfViewer._getVisiblePages();
     });
 
     handleEventPdfTool(pdfFindController, pdfViewer, eventBus);
@@ -418,23 +421,46 @@ function handleEventPdfTool(pdfFindController, pdfViewer, eventBus) {
     });
 
     findEdit.addEventListener('blur', e => {
-        if (findEdit.value) {
-            eventBus.dispatch("find", {
-                type: "",
-                query: findEdit.value,
-                phraseSearch: findEdit.value,
-                caseSensitive: false,
-                entireWord: false,
-                highlightAll: true,
-                findPrevious: false,
-                matchDiacritics: true,
-            });
-        }
+        eventBus.dispatch("find", {
+            type: "again",
+            query: findEdit.value,
+            phraseSearch: findEdit.value,
+            caseSensitive: false,
+            entireWord: false,
+            highlightAll: true,
+            findPrevious: false,
+            matchDiacritics: false,
+        });
     });
 
-    findMatch.addEventListener('click', e => {
-        if (!findEdit.value) return;
-        pdfFindController.highlightMatches;
+    findEdit.addEventListener("input", () => {
+        dispatchEvent("findbarclose");
+    });
+
+    findPrev.addEventListener("click", () => {
+        eventBus.dispatch("find", {
+            type: "again",
+            query: findEdit.value,
+            phraseSearch: true,
+            caseSensitive: true,
+            entireWord: false,
+            highlightAll: true,
+            findPrevious: true,
+            matchDiacritics: false,
+        });
+    });
+
+    findNext.addEventListener("click", () => {
+        eventBus.dispatch("find", {
+            type: "again",
+            query: findEdit.value,
+            phraseSearch: true,
+            caseSensitive: true,
+            entireWord: false,
+            highlightAll: true,
+            findPrevious: false,
+            matchDiacritics: false,
+        });
     });
 
     pageEdit.addEventListener("keyup", e => {
