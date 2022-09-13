@@ -8,11 +8,14 @@ if (!pdfjsLib.getDocument || !pdfjsViewer.PDFPageView) {
     alert('Please build the pdfjs-dist library using\n  `gulp dist-install`');
 }
 pdfjsLib.GlobalWorkerOptions.workerSrc = './static/pdf-lib/pdf.worker.js';
+// pdfjsLib.GlobalWorkerOptions.workerSrc = '//mozilla.github.io/pdf.js/build/pdf.worker.js';
 const CMAP_URL = './static/pdf-lib/cmaps/';
 const CMAP_PACKED = true;
-let scaleDefault = 1.0;
-let rotationDefault = 0;
 const ENABLE_XFA = true;
+const SANDBOX_BUNDLE_SRC = "../../node_modules/pdfjs-dist/build/pdf.sandbox.js";
+
+const $ = document.querySelector.bind(document);
+const $$ = document.querySelectorAll.bind(document);
 
 // declare var
 let isDown = false;
@@ -22,7 +25,6 @@ let origY;
 let action;
 let objectAnnot;
 let canvasArr = [];
-let pdfPageViewArr = [];
 let docInfo = {
     pdfDocument: null,
     src: null,
@@ -34,21 +36,207 @@ let docInfo = {
     scale: 1.0
 };
 let loadingTask;
-let pdfDocuments = [];
-let testRotate = 0;
 // declare var
+
+const pageCountLbl = $('#page-count');
+const findEdit = $('#find-edt');
+const pageEdit = $('#page-edt');
+const rlBtn = $('#rl-btn');
+const rrBtn = $('#rr-btn');
+const nextBtn = $('#next-btn');
+const prevBtn = $('#prev-btn');
+const showThumbBtn = $('#show-thumb-btn');
+const zoomInBtn = $('#zoom-in-btn');
+const zoomOutBtn = $('#zoom-out-btn');
+const refreshBtn = $('#refresh-btn');
+const scrollModeSelect = $('#scroll-mode-select');
+const spreadModeSelect = $('#spread-mode-select');
+const scaleModeSelect = $('#scale-mode-select');
+const findMatch = $('#find-match');
+const DEFAULT_SCALE_SIZE = 1;
 
 // start init
 init();
 
-function initOnEvent() {
-    const pdfTool = document.querySelector('#pdf-tool').childNodes;
-    const pdfAction = document.querySelector('#pdf-annots').childNodes;
-    pdfTool.forEach(tool => {
-        tool.addEventListener('click', e => {
-            choosePdfTool(tool.id);
-        })
+async function renderPdfjsViewer(src) {
+    destroyWorker();
+    const eventBus = new pdfjsViewer.EventBus();
+
+    const pdfLinkService = new pdfjsViewer.PDFLinkService({
+        eventBus,
     });
+
+    const pdfFindController = new pdfjsViewer.PDFFindController({
+        eventBus,
+        linkService: pdfLinkService,
+    });
+
+    const pdfScriptingManager = new pdfjsViewer.PDFScriptingManager({
+        eventBus,
+        // sandboxBundleSrc: SANDBOX_BUNDLE_SRC,
+    });
+
+    const pdfViewer = new pdfjsViewer.PDFViewer({
+        container: $('#viewerContainer'),
+        eventBus,
+        linkService: pdfLinkService,
+        findController: pdfFindController,
+        // scriptingManager: pdfScriptingManager,
+        enableScripting: true, // Only necessary in PDF.js version 2.10.377 and below.
+    });
+
+    pdfLinkService.setViewer(pdfViewer);
+    pdfScriptingManager.setViewer(pdfViewer);
+
+    loadingTask = pdfjsLib.getDocument({
+        url: src,
+        cMapUrl: CMAP_URL,
+        cMapPacked: CMAP_PACKED,
+        enableXfa: ENABLE_XFA,
+    });
+
+    loadingTask.onPassword = (updatePassword, reason) => {
+        if (reason === 1) { // need a password
+            const new_password = prompt('Please enter a password:');
+            updatePassword(new_password);
+        } else { // Invalid password
+            const new_password = prompt('Invalid! Please enter a password:');
+            updatePassword(new_password);
+        }
+    };
+
+    const pdfDocument = await loadingTask.promise;
+    // Document loaded, specifying document for the viewer and
+    // the (optional) linkService.
+
+    pdfViewer.setDocument(pdfDocument);
+    pdfLinkService.setDocument(pdfDocument, null);
+
+    eventBus.on("annotationlayerrendered", evt => {
+        // renderCanvasAnnots(pdfViewer._pages);
+        console.log('annotationlayerrendered');
+    });
+
+    eventBus.on("baseviewerinit", evt => {
+        // renderCanvasAnnots(pdfViewer._pages);
+        console.log('baseviewerinit');
+    });
+
+    eventBus.on("rotationchanging", evt => {
+        // renderCanvasAnnots(pdfViewer._pages);
+        console.log('rotationchanging');
+    });
+
+    eventBus.on("pagesdestroy", evt => {
+        // renderCanvasAnnots(pdfViewer._pages);
+        console.log('pagesdestroy');
+    });
+
+    eventBus.on("pagesloaded", evt => {
+        // renderCanvasAnnots(pdfViewer._pages);
+        console.log('pagesloaded');
+    });
+
+    eventBus.on("pagerender", evt => {
+        // renderCanvasAnnots(pdfViewer._pages);
+        console.log('pagerendered');
+    });
+
+    eventBus.on("pagerender", evt => {
+        // renderCanvasAnnots(pdfViewer._pages);
+        console.log('pagerendered');
+    });
+
+    eventBus.on("scalechanging", evt => {
+        // renderCanvasAnnots(pdfViewer._pages);
+        console.log('scalechanging');
+    });
+
+    eventBus.on("updateviewarea", evt => {
+        // renderCanvasAnnots(pdfViewer._pages);
+        console.log('updateviewarea');
+    });
+
+    eventBus.on("optionalcontentconfigchanged", evt => {
+        // renderCanvasAnnots(pdfViewer._pages);
+        console.log('optionalcontentconfigchanged');
+    });
+
+    eventBus.on("xfalayerrendered", evt => {
+        // renderCanvasAnnots(pdfViewer._pages);
+        console.log('xfalayerrendered');
+    });
+
+    eventBus.on("textlayerrendered", evt => {
+        // renderCanvasAnnots(pdfViewer._pages);
+        console.log('textlayerrendered');
+    });
+
+    eventBus.on("updatetextlayermatches", evt => {
+        // renderCanvasAnnots(pdfViewer._pages);
+        console.log('updatetextlayermatches');
+    });
+
+    eventBus.on("pagechanging", evt => {
+        // renderCanvasAnnots(pdfViewer._pages);
+        console.log('pagechanging');
+    });
+
+
+    eventBus.on("pagesinit", function () {
+        // We can use pdfViewer now, e.g. let's change default scale.
+        console.log('pagesinit');
+        pdfViewer.currentScaleValue = "page-actual";
+        pageCountLbl.innerText = pdfDocument.numPages;
+    });
+
+    handleEventPdfTool(pdfFindController, pdfViewer, eventBus);
+}
+
+function renderCanvasAnnots(pdfPageViews) {
+    for (let i = 0; i < pdfPageViews.length; i++) {
+        settingPdfPageView(pdfPageViews[i]);
+    }
+}
+
+function settingPdfPageView(pdfPageView) {
+    const canvasWrapper = pdfPageView.canvas;
+    const src = canvasWrapper.toDataURL({format: 'png', enableRetinaScaling: true});
+    const canvas = new fabric.Canvas(canvasWrapper, {
+        hoverCursor: 'pointer',
+        selection: true
+    });
+
+    fabric.Image.fromURL(src, image => {
+        canvas.setBackgroundImage(
+            image,
+            () => {
+                canvas.requestRenderAll();
+            },
+            {
+                originX: 'left',
+                originY: 'top',
+            }
+        );
+    });
+    canvas.page = pdfPageView.id;
+
+    initOnEvent();
+    settingFabricCanvas();
+    handleEventCanvas(canvas, pdfPageView.id);
+    util.randomAnnots(canvas);
+    canvasArr.push(canvas);
+}
+
+function initOnEvent() {
+    const pdfTool = $('#pdf-tool').childNodes;
+    const pdfAction = $('#pdf-annots').childNodes;
+    // pdfTool.forEach(tool => {
+    //     tool.addEventListener('click', e => {
+    //         console.log(tool.id)
+    //         choosePdfTool(tool.id);
+    //     })
+    // });
     pdfAction.forEach(action => {
         action.addEventListener('click', e => {
             chooseAction(action.id);
@@ -64,7 +252,6 @@ function deleteObject(eventData, transform) {
             canvas.remove(target);
         }
     }
-    annotsStorage.deleteAnnot(docInfo.docId, target.get('uuid'));
     canvas.requestRenderAll();
 }
 
@@ -136,7 +323,7 @@ function init() {
 }
 
 function renderListDocs() {
-    const listDocs = document.querySelector('#list-docs');
+    const listDocs = $('#list-docs');
     for (let i = 0; i < data.length; i++) {
         const item = document.createElement('li');
         item.id = `item-${i + 1}`;
@@ -151,7 +338,7 @@ function renderListDocs() {
 
 function chooseAction(_action) {
     action = _action;
-    const canvasWrappers = document.querySelectorAll('#pageContainer .page');
+    const canvasWrappers = Array.from($$('#viewerContainer #viewer .page'));
     switch (_action) {
         case 'select':
         case 'free-draw':
@@ -167,8 +354,8 @@ function chooseAction(_action) {
             break;
         case 'non-select':
             canvasArr.forEach(cs => {
-                console.log(cs.toJSON());
-                console.log(cs.getObjects());
+                // console.log(cs.toJSON());
+                // console.log(cs.getObjects());
                 if (cs.getActiveObject() !== undefined) {
                     cs.discardActiveObject();
                     cs.requestRenderAll();
@@ -191,184 +378,118 @@ function chooseAction(_action) {
                         cs.requestRenderAll();
                     });
                 });
-                annotsStorage.deleteAllAnnot(docInfo.docId);
             }
             break;
     }
 }
 
-async function choosePdfTool(_toolName) {
-    switch (_toolName) {
-        case 'reset':
-            pdfPageViewArr.forEach(lt => console.log(lt));
-            // pdfPageViewArr.forEach(pdfPageView => {
-            //     pdfPageView.reset({keepZoomLayer: true, keepAnnotationLayer: true, keepXfaLayer: true});
-            // });
-            break;
-        case 'zoom-in':
-            // pdfPageViewArr.forEach(pdfPageView => {
-            //     pdfPageView.update({scale: scaleDefault});
-            // });
-            scaleDefault = scaleDefault / 1.1;
-            if (scaleDefault < 0.3) {
-                return;
-            }
-            await renderPdf(docInfo.src, scaleDefault, rotationDefault);
-            canvasArr.forEach(canvas => {
-                if (canvas.getZoom() > 15)
-                    return;
-                canvas.zoomToPoint(new fabric.Point(canvas.width / 2, canvas.height / 2), canvas.getZoom() * 1.1);
+function handleEventPdfTool(pdfFindController, pdfViewer, eventBus) {
+    zoomInBtn.addEventListener('click', e => {
+        pdfViewer.increaseScale(DEFAULT_SCALE_SIZE);
+    });
+    zoomOutBtn.addEventListener('click', e => {
+        pdfViewer.decreaseScale(DEFAULT_SCALE_SIZE);
+    });
+    rlBtn.addEventListener('click', e => {
+        const rotateVal = (pdfViewer.pagesRotation - 90) % 360;
+        pdfViewer.pagesRotation = rotateVal;
+    });
+    rrBtn.addEventListener('click', e => {
+        const rotateVal = (pdfViewer.pagesRotation + 90) % 360;
+        pdfViewer.pagesRotation = rotateVal;
+    });
+    nextBtn.addEventListener('click', e => {
+        pdfViewer.nextPage();
+    });
+    prevBtn.addEventListener('click', e => {
+        pdfViewer.previousPage();
+    });
+    scrollModeSelect.addEventListener('click', e => {
+        pdfViewer.scrollMode = +scrollModeSelect.value;
+    });
+    spreadModeSelect.addEventListener('click', e => {
+        pdfViewer.spreadMode = +spreadModeSelect.value;
+    });
+    scaleModeSelect.addEventListener('click', e => {
+        pdfViewer._setScale(scaleModeSelect.value);
+    });
+    refreshBtn.addEventListener('click', e => {
+        pdfViewer.refresh();
+    });
+
+    findEdit.addEventListener('blur', e => {
+        if (findEdit.value) {
+            eventBus.dispatch("find", {
+                type: "",
+                query: findEdit.value,
+                phraseSearch: findEdit.value,
+                caseSensitive: false,
+                entireWord: false,
+                highlightAll: true,
+                findPrevious: false,
+                matchDiacritics: true,
             });
-            break;
-        case 'zoom-out':
-            scaleDefault = scaleDefault / 1.1;
-            if (scaleDefault < 0.3) {
-                return;
+        }
+    });
+
+    findMatch.addEventListener('click', e => {
+        if (!findEdit.value) return;
+        pdfFindController.highlightMatches;
+    });
+
+    pageEdit.addEventListener("keyup", e => {
+        let val = Number(pageEdit.value);
+        if (e.keyCode === 13 && val) {
+            // Cancel the default action, if needed
+            e.preventDefault();
+            if (val > pdfViewer.pagesCount) {
+                val = pdfViewer.pagesCount;
             }
-            await renderPdf(docInfo.src, scaleDefault, rotationDefault);
-            canvasArr.forEach(canvas => {
-                if (canvas.getZoom() < 0.3)
-                    return;
-                canvas.zoomToPoint(new fabric.Point(canvas.width / 2, canvas.height / 2), canvas.getZoom() / 1.1);
-            });
-            break;
-    }
+            pdfViewer.scrollPageIntoView({pageNumber: val});
+        }
+    });
+
+    showThumbBtn.addEventListener('click', e => {
+        // console.log(pdfViewer._pages);
+        // console.log(pdfViewer.getPageView(1));
+        // pdfViewer.cleanup();
+        const thumbnail = document.querySelector('#thumbnail');
+        pdfViewer._pages.forEach(async page => {
+            setTimeout(async () => {
+                await makeThumb(page.pdfPage).then(data => {
+                    const img = document.createElement('img');
+                    img.src = data.toDataURL({format: 'png', enableRetinaScaling: true});
+                    img.style.margin = '4px 0px';
+                    thumbnail.appendChild(img);
+                })
+            }, 1000);
+        })
+    });
+}
+
+function makeThumb(page) {
+    // draw page to fit into 96x96 canvas
+    let vp = page.getViewport({scale: 1,});
+    let canvas = document.createElement("canvas");
+    let scalesize = 1;
+    canvas.width = vp.width * scalesize;
+    canvas.height = vp.height * scalesize;
+    let scale = Math.min(canvas.width / vp.width, canvas.height / vp.height);
+    return page.render({
+        canvasContext: canvas.getContext("2d"),
+        viewport: page.getViewport({scale: scale})
+    }).promise.then(function () {
+        return canvas;
+    });
 }
 
 async function changeDocument(src, docId) {
-
-
-    // pageContainer.innerHTML = '';
-    // if (pageContainer)
-    //     pageContainer.remove();
-    // pageContainer = document.createElement('div');
-    // pageContainer.id = 'pageContainer';
-    // const container = document.querySelector('.container');
-    // container.appendChild(pageContainer);
-
     docInfo.docId = docId;
     docInfo.docName = docId;
     docInfo.src = src;
-    annotsStorage.initKey(docInfo.docId);
-    await renderPdf(src, scaleDefault, rotationDefault);
-}
-
-// end init
-
-async function renderPdf(src, scale, rotate) {
-    // cleanPage();
-    destroyWorker();
-    // destroyPdfPageView();
-
-    let pageContainer = document.querySelector('#pageContainer');
-    pageContainer.innerHTML = '';
-    // pageContainer.remove();
-    // pageContainer = document.createElement('div');
-    // pageContainer.id = 'pageContainer';
-    // const container = document.querySelector('.container');
-    // container.appendChild(pageContainer);
-    canvasArr = [];
-
-    createWorker().then(async () => {
-        await loadingTask.promise
-            .then(async pdfDocument => {
-                const numPages = pdfDocument.numPages;
-                docInfo.pages = numPages;
-                docInfo.pdfDocument = pdfDocument;
-                for (let pageNumber = 1; pageNumber <= numPages; pageNumber++) {
-                    await renderPage(pdfDocument, pageNumber, scale, rotate);
-                }
-            }).catch(err => {
-                console.log(err);
-            });
-        // const pdfDocument = await loadingTask.promise;
-    });
-
-}
-
-async function renderPage(pdfDocument, pageNumber, _scale, _rotate) {
-    // Document loaded, retrieving the page.
-
-    const pdfPage = await pdfDocument.getPage(pageNumber);
-    // Creating the page view with default parameters.
-    const pdfPageView = new pdfjsViewer.PDFPageView({
-        container: document.getElementById('pageContainer'),
-        id: pageNumber,
-        scale: _scale,
-        defaultViewport: pdfPage.getViewport({scale: _scale, rotation: _rotate}),
-        eventBus: new pdfjsViewer.EventBus(),
-        // We can enable text/annotationUtil.js/xfa/struct-layers, as needed.
-        textLayerFactory: !pageNumber.isPureXfa
-            ? new pdfjsViewer.DefaultTextLayerFactory()
-            : null,
-        annotationLayerFactory: new pdfjsViewer.DefaultAnnotationLayerFactory(),
-        xfaLayerFactory: pageNumber.isPureXfa
-            ? new pdfjsViewer.DefaultXfaLayerFactory()
-            : null,
-        structTreeLayerFactory: new pdfjsViewer.DefaultStructTreeLayerFactory(),
-    });
-    pdfDocument.getOptionalContentConfig().then(a => {
-        console.log(a)
-    })
-    // Associate the actual page with the view, and draw it.
-    settingPdfPageView(pageNumber, pdfPage, pdfPageView, _scale, _rotate);
-    document.querySelector('#test0').addEventListener('click', e => {
-        // testRotate = (testRotate + 90) % 360
-        settingPdfPageView(pageNumber, pdfPage, pdfPageView, _scale, 0);
-    })
-    document.querySelector('#test90').addEventListener('click', e => {
-        // testRotate = (testRotate + 90) % 360
-        settingPdfPageView(pageNumber, pdfPage, pdfPageView, _scale, 90);
-    })
-    document.querySelector('#test180').addEventListener('click', e => {
-        // testRotate = (testRotate + 90) % 360
-        settingPdfPageView(pageNumber, pdfPage, pdfPageView, _scale, 180);
-    })
-    document.querySelector('#test270').addEventListener('click', e => {
-        // testRotate = (testRotate + 90) % 360
-        settingPdfPageView(pageNumber, pdfPage, pdfPageView, _scale, 270);
-    })
-}
-
-function settingPdfPageView(pageNumber, pdfPage, pdfPageView, _scale, _rotate) {
-    // pdfPageView.rotation = _rotate;
-    // pdfPageView.scale = _scale;
-    pdfPageView.update({scale: _scale, rotation: _rotate});
-    pdfPageView.setPdfPage(pdfPage);
-    return pdfPageView.draw().then(() => {
-        pdfPageView.textLayer.enhanceTextSelection = true;
-        const pageItem = document.getElementsByClassName('page')[pageNumber - 1];
-        pageItem.setAttribute('id', `pageContainer${pageNumber}`);
-        pageItem.style.margin = '10px 10px';
-        return pageItem;
-    }).then(page => {
-        const canvasWrapper = page.querySelector('.canvasWrapper canvas');
-        canvasWrapper.setAttribute('id', `pageContainer-canvas-${pageNumber}`);
-        const src = canvasWrapper.toDataURL({format: 'png', enableRetinaScaling: true});
-        const canvas = new fabric.Canvas(canvasWrapper, {
-            hoverCursor: 'pointer',
-            selection: true
-        });
-
-        fabric.Image.fromURL(src, image => {
-            canvas.setBackgroundImage(
-                image,
-                () => {
-                    canvas.requestRenderAll();
-                },
-                {
-                    originX: 'left',
-                    originY: 'top',
-                }
-            );
-        });
-        canvas.page = pageNumber;
-
-        initOnEvent();
-        settingFabricCanvas();
-        handleEventCanvas(canvas, pageNumber);
-        util.randomAnnots(canvas);
-        canvasArr.push(canvas);
+    updateDisplayName(docInfo.docName);
+    await renderPdfjsViewer(docInfo.src).then(() => {
+        console.log('hello')
     });
 }
 
@@ -575,47 +696,14 @@ function onMouseDown(canvas, e) {
 }
 
 function updateDisplayName(name) {
-    const docName = document.querySelector(`#doc-name`);
+    const docName = $(`#doc-name`);
     if (docName) {
         docName.innerHTML = name;
     }
-}
-
-
-async function createWorker() {
-    console.log('create worker')
-    // Loading document.
-    loadingTask = pdfjsLib.getDocument({
-        url: docInfo.src,
-        cMapUrl: CMAP_URL,
-        cMapPacked: CMAP_PACKED,
-        enableXfa: ENABLE_XFA,
-        enableScripting: true,
-    });
-
-    loadingTask.onPassword = (updatePassword, reason) => {
-        if (reason === 1) { // need a password
-            const new_password = prompt('Please enter a password:');
-            updatePassword(new_password);
-        } else { // Invalid password
-            const new_password = prompt('Invalid! Please enter a password:');
-            updatePassword(new_password);
-        }
-    };
-
-}
-
-async function destroyPdfPageView() {
-    console.log(pdfPageViewArr);
-    pdfPageViewArr.forEach(pdf => {
-        pdf.destroy();
-    });
-    pdfPageViewArr = [];
 }
 
 function destroyWorker() {
     if (loadingTask) {
         loadingTask.destroy();
     }
-    loadingTask = null;
 }

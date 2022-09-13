@@ -12,22 +12,54 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.2.4/fabric.min.js"
             integrity="sha512-HkRNCiaZYxQAkHpLFYI90ObSzL0vaIXL8Xe3bM51vhdYI79RDFMLTAsmVH1xVPREmTlUWexgrQMk+c3RBTsLGw=="
             crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"
+          integrity="sha512-SfTiTlX6kk+qitfevl/7LibUOeJWlt9rbyDn92a1DqWOw9vWG2MFoays0sgObmWazO5BQPiFucnnEAjpAB+/Sw=="
+          crossorigin="anonymous" referrerpolicy="no-referrer"/>
 
 </head>
 
 <body tabindex="1">
+
 <div id="doc-name"></div>
-<div class="container">
-    <div id="pageContainer" class="pdfViewer singlePageView"></div>
+
+<div id="viewerContainer">
+    <div id="viewer" class="pdfViewer"></div>
 </div>
+
+<div id="thumbnail" class="thumbail"></div>
 <div id='pdf-tool'>
-    <button id='test0'>0</button>
-    <button id='test90'>90</button>
-    <button id='test180'>180</button>
-    <button id='test270'>270</button>
-    <button id='reset'>reset</button>
-    <button id='zoom-in'>zoom in</button>
-    <button id='zoom-out'>zoom out</button>
+    <input type='text' id='find-edt' placeholder='search...'>
+    <button id='find-match'><i class="fa fa-search" aria-hidden="true"></i></button>
+    <button id='show-thumb-btn'><i class="fa fa-picture-o" aria-hidden="true"></i></button>
+    <button id='rl-btn'><i class="fa fa-undo" aria-hidden="true"></i></button>
+    <span>
+        <input style="width: 20px" type='text' id='page-edt' placeholder='Go to page'>/<span id="page-count"></span>
+    </span>
+    <button id='rr-btn'><i class="fa fa-repeat" aria-hidden="true"></i></button>
+    <button id='prev-btn'><i class="fa fa-long-arrow-up" aria-hidden="true"></i></button>
+    <button id='next-btn'><i class="fa fa-long-arrow-down" aria-hidden="true"></i></button>
+    <button id='zoom-in-btn'><i class="fa fa-search-plus" aria-hidden="true"></i></button>
+    <button id='zoom-out-btn'><i class="fa fa-search-minus" aria-hidden="true"></i></button>
+    <button id='refresh-btn'><i class="fa fa-refresh" aria-hidden="true"></i></button>
+
+    <select id="scroll-mode-select">
+        <option value="0">scrollVertical</option>
+        <option value="1">scrollHorizontal</option>
+        <option value="2">scrollWrapped</option>
+        <option value="3">scrollPage</option>
+    </select>
+    <select id="spread-mode-select">
+        <option value="0">spreadNone</option>
+        <option value="1">spreadOdd</option>
+        <option value="2">spreadEven</option>
+    </select>
+    <select id="scale-mode-select">
+        <option value="page-actual">page-actual</option>
+        <option value="page-width">page-width</option>
+        <option value="page-height">page-height</option>
+        <option value="page-fit">page-fit</option>
+        <option value="auto">auto</option>
+    </select>
 </div>
 <div id='pdf-annots'>
     <button id='non-select'>Non select</button>

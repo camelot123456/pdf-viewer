@@ -14,7 +14,7 @@ var DEFAULT_SCALE_SIZE = .15;
 const CMAP_URL = "./cmaps/";
 const CMAP_PACKED = true;
 
-const DEFAULT_URL = "./pdfs/4.pdf";
+const DEFAULT_URL = "./pdfs/1.pdf";
 
 const ENABLE_XFA = true;
 const SEARCH_FOR = "";
