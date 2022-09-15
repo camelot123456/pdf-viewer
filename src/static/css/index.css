@@ -26,20 +26,22 @@ body {
 }
 
 #pdf-tool {
-    width: 80px;
-    display: flex;
-    flex-direction: column;
-    position: fixed;
-    bottom: 10px;
-    left: 10px;
+    /*width: 80px;*/
+    /*display: flex;*/
+    /*flex-direction: column;*/
+    /*position: fixed;*/
+    /*bottom: 10px;*/
+    /*left: 10px;*/
+    display: block;
 }
 
 #pdf-annots {
-    display: flex;
-    flex-direction: column;
-    position: fixed;
-    top: 10px;
-    left: 10px;
+    /*display: flex;*/
+    /*flex-direction: column;*/
+    /*position: fixed;*/
+    /*top: 10px;*/
+    /*left: 10px;*/
+    display: block;
 }
 
 .hidden {
@@ -51,7 +53,7 @@ body {
     color: white;
     font-size: 18px;
     text-align: center;
-    line-height: 36px;
+    line-height: 24px;
 }
 
 .thumbail {

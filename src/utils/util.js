@@ -20,7 +20,7 @@ function randomAnnots(canvas) {
 
 function randomAnnots1(canvas) {
     const red = new fabric.Rect({
-        top: 100, left: 0, width: 80, height: 50, fill: 'red' });
+        top: 0, left: 0, width: 80, height: 50, fill: 'red' });
     const blue = new fabric.Rect({
         top: 200, left: 200, width: 50, height: 70, fill: 'blue' });
     const green = new fabric.Rect({

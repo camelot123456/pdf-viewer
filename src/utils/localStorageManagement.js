@@ -11,9 +11,14 @@ function getOneAnnot(documentId, annotId) {
 }
 
 function addAnnot(documentId, objectAnnot) {
-    const objs = getAllAnnot(documentId);
+    let objs = getAllAnnot(documentId);
+    if (objs === null || objs === undefined) {
+        initKey(documentId);
+        objs = getAllAnnot(documentId);
+    }
     objs.push(objectAnnot);
-    localStorage.setItem(`${documentId}/annots`, objs);
+    console.log(objectAnnot)
+    localStorage.setItem(`${documentId}/annots`, JSON.stringify(objs));
 }
 
 function editAnnot(documentId, annotId, objectAnnot) {

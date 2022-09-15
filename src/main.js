@@ -26,20 +26,17 @@ let action;
 let objectAnnot;
 let canvasArr = [];
 let docInfo = {
-    pdfDocument: null,
     src: null,
     docId: '',
     docName: '',
-    pages: 0,
-    page: 1,
     rotate: 0,
-    scale: 1.0,
-    thumbnails: []
+    scale: 1.0
 };
 let pdfCanvas = {
     scale: 1.0,
     rotation: 0,
     degrees: 0,
+    isRotate: false
 };
 let canvasSize = {
     width: 0,
@@ -126,7 +123,8 @@ async function renderPdfjsViewer(src) {
     pdfFindController.setDocument(pdfDocument);
 
     eventBus.on("pagesinit", evt => {
-        pdfViewer.currentScaleValue = "page-actual";
+        docInfo = JSON.parse(localStorage.getItem('docInfo'));
+        pdfViewer.currentScaleValue = "page-height";
     });
 
     eventBus.on("pagesloaded", evt => {
@@ -139,6 +137,8 @@ async function renderPdfjsViewer(src) {
 
     eventBus.on("rotationchanging", evt => {
         pdfCanvas.rotation = evt.pagesRotation;
+        pdfCanvas.isRotate = true;
+        console.log(pdfViewer.currentScaleValue);
         console.log('rotationchanging', evt);
     });
 
@@ -147,7 +147,8 @@ async function renderPdfjsViewer(src) {
             alert(evt.error)
         }
         settingPdfPageView(evt.source);
-        docInfo.thumbnails.push(evt.source.canvas.toDataURL({type: "png"}));
+        console.log(docInfo);
+        // docInfo.thumbnails.push(evt.source.canvas.toDataURL({type: "png"}));
     });
 
     eventBus.on("pagerender", evt => {
@@ -210,43 +211,30 @@ function settingPdfPageView(pdfPageView) {
     // util.randomAnnots(canvas);
     util.randomAnnots1(canvas);
     updateZoom(canvas, pdfCanvas.scale);
+    if (pdfCanvas.isRotate) {
+        updateRotate(canvas, pdfCanvas.degrees);
+        pdfCanvas.isRotate = false;
+    }
 }
 
-function updateRotate(canvas, rotate) {
+function updateRotate(canvas, degrees) {
+    // console.log(fabric.util.rotatePoint(new fabric.Point(0, 0), point, degreesToRadians(this.angle)));
     let PositionAdjustment = 0;
-    if (pdfCanvas.degrees === -90) {
-        PositionAdjustment = (canvasSize.height - canvasSize.width) / 2;
+    if (degrees === -90) {
+        PositionAdjustment = (canvas.height - canvas.width) / 2;
     } else {
-        PositionAdjustment = (canvasSize.width - canvasSize.height) / 2;
+        PositionAdjustment = (canvas.width - canvas.height) / 2;
     }
-    const canvasCenter = new fabric.Point(canvasSize.width / 2, canvasSize.height / 2);
-    // center of canvas
-    const radians = fabric.util.degreesToRadians(pdfCanvas.degrees);
+    const canvasCenter = new fabric.Point(canvas.width / 2, canvas.height / 2);
+    const radians = fabric.util.degreesToRadians(degrees);
     canvas.getObjects().forEach(obj => {
-        const objectOrigin = new fabric.Point(obj.left + PositionAdjustment, obj.top + PositionAdjustment);
+        const objectOrigin = new fabric.Point(obj.left , obj.top );
         const new_loc = fabric.util.rotatePoint(objectOrigin, canvasCenter, radians);
         obj.top = new_loc.y;
         obj.left = new_loc.x;
-        // rotate each object by the same angle
-        obj.angle = pdfCanvas.degrees;
+        obj.angle = degrees;
         obj.setCoords();
     });
-
-    if ([0, 180, -180].includes(rotate % 360)) {
-        canvas.setWidth(canvasSize.height * canvas.getZoom());
-        canvas.setHeight(canvasSize.width * canvas.getZoom());
-    } else {
-        canvas.setWidth(canvasSize.height * canvas.getZoom());
-        canvas.setHeight(canvasSize.width * canvas.getZoom());
-    }
-    canvasSize = {
-        width: canvas.getWidth() / canvas.getZoom(),
-        height: canvas.getHeight() / canvas.getZoom()
-    };
-    // canvas.setDimensions({
-    //     width: canvas.getWidth(),
-    //     height: canvas.getHeight()
-    // });
     canvas.requestRenderAll();
 }
 
@@ -257,10 +245,6 @@ function updateZoom(canvas, scale) {
         obj.width = obj.width * scale;
         obj.height = obj.height * scale;
         obj.setCoords();
-    });
-    canvas.setDimensions({
-        width: canvasSize.width / scale,
-        height: canvasSize.height / scale
     });
     canvas.requestRenderAll();
 }
@@ -313,7 +297,7 @@ function renderIcon(icon) {
 }
 
 function settingFabricCanvas() {
-    fabric.Object.prototype.transparentCorners = false;
+    fabric.Object.prototype.transparentCorners = true;
     fabric.Object.prototype.cornerColor = '#b2ccff';
     fabric.Object.prototype.cornerStyle = 'rect'; // or circle
     fabric.Object.prototype.controls.deleteControl = new fabric.Control({
@@ -416,11 +400,13 @@ function handleEventPdfTool(pdfFindController, pdfViewer, eventBus) {
     });
     rlBtn.addEventListener('click', e => {
         pdfCanvas.degrees = -90;
+        pdfCanvas.isRotate = true;
         const rotateVal = (pdfViewer.pagesRotation - 90) % 360;
         pdfViewer.pagesRotation = rotateVal;
     });
     rrBtn.addEventListener('click', e => {
         pdfCanvas.degrees = 90;
+        pdfCanvas.isRotate = true;
         const rotateVal = (pdfViewer.pagesRotation + 90) % 360;
         pdfViewer.pagesRotation = rotateVal;
     });
@@ -530,6 +516,7 @@ async function changeDocument(src, docId) {
     docInfo.docId = docId;
     docInfo.docName = docId;
     docInfo.src = src;
+    localStorage.setItem('docInfo', JSON.stringify(docInfo));
     updateDisplayName(docInfo.docName);
     await renderPdfjsViewer(docInfo.src);
 }
@@ -567,7 +554,7 @@ async function handleEventCanvas(canvas, pageNumber) {
             canvas.renderAll();
         },
         'selection:created': e => {
-            console.log(e.target);
+            // console.log(e.target);
         },
         'object:scaling': e => {
             isDown = false;
@@ -601,7 +588,7 @@ async function handleEventCanvas(canvas, pageNumber) {
         },
         'object:modified': e => {
             isEditAnnots = true;
-            // console.log(e.target);
+            // console.log(canvas.getObjects());
         }
     });
 }
@@ -662,17 +649,16 @@ function onMouseMove(canvas, e) {
 }
 
 function onMouseUp(canvas, e) {
-    // console.log(canvas.getObjects());
     // console.log(canvas.toObject());
-    // console.log(objectAnnot);
+    // console.log(e.target);
 
+    // e.target.width = e.target.width * e.target.scaleX;
+    // e.target.height = e.target.height * e.target.scaleY;
+    console.log(canvas.toJSON())
     // if (isEditAnnots) {
     //     annotsStorage.editAnnot(docInfo.docId, e.target.get('uuid'), e.target);
     // } else {
-    //     if (e.target) {
-    //
-    //     }
-    //     annotsStorage.addAnnot(docInfo.docId, e.target);
+    //     annotsStorage.addAnnot(docInfo.docId, objectAnnot);
     // }
     if (objectAnnot && (objectAnnot.width === 0 || objectAnnot.height === 0)) {
         canvas.remove(objectAnnot);
@@ -681,6 +667,7 @@ function onMouseUp(canvas, e) {
     isDown = false;
     canvas.requestRenderAll();
 
+    // console.log(canvas.getObjects());
     isEditAnnots = false;
 }
 
@@ -717,7 +704,7 @@ function onMouseDown(canvas, e) {
                 strokeWidth: 2,
                 stroke: '#ff0012',
                 selectable: true,
-                noScaleCache: false,
+                noScaleCache: true,
                 hasControls: true,
                 strokeUniform: true
             });
